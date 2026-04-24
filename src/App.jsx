@@ -3,20 +3,63 @@ import { supabase } from './supabase.js'
 
 const FREE_LIMIT = 20
 
+const BOARD_GROUPS = {
+  'School - CBSE': ['Class 9 - CBSE', 'Class 10 - CBSE', 'Class 11 - CBSE', 'Class 12 - CBSE'],
+  'School - ICSE / ISC': ['Class 10 - ICSE', 'Class 12 - ISC'],
+  'School - State Board': ['Class 9 - State Board', 'Class 10 - State Board', 'Class 11 - State Board', 'Class 12 - State Board'],
+  'Entrance Exams': ['JEE Mains & Advanced', 'NEET', 'UPSC', 'CAT / MBA Entrance', 'CLAT - Law Entrance', 'GATE'],
+  'College - Engineering': ['B.Tech / B.E - CSE', 'B.Tech / B.E - ECE', 'B.Tech / B.E - Mechanical', 'B.Tech / B.E - Civil', 'B.Tech / B.E - Other', 'Diploma / Polytechnic'],
+  'College - Commerce': ['B.Com / M.Com', 'BBA / MBA', 'CA Foundation', 'CA Intermediate', 'CA Final'],
+  'College - Science': ['B.Sc / M.Sc - Physics', 'B.Sc / M.Sc - Chemistry', 'B.Sc / M.Sc - Mathematics', 'B.Sc / M.Sc - Biology', 'B.Sc / M.Sc - Computer Science'],
+  'College - Computer': ['BCA / MCA'],
+  'College - Medical': ['MBBS / BDS', 'B.Pharma / M.Pharma', 'Nursing', 'Allied Health Sciences'],
+  'College - Arts & Law': ['BA / MA - History', 'BA / MA - Political Science', 'BA / MA - Economics', 'BA / MA - Psychology', 'BA / MA - English Literature', 'LLB / LLM - Law'],
+}
+
 const BOARDS = {
-  'Class 9 - CBSE': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi'],
-  'Class 10 - CBSE': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi'],
-  'Class 11 - CBSE': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics'],
-  'Class 12 - CBSE': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics'],
-  'Class 10 - ICSE': ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History & Civics'],
-  'Class 12 - ISC': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English'],
-  'JEE Mains & Advanced': ['Physics', 'Chemistry', 'Mathematics'],
-  'NEET': ['Physics', 'Chemistry', 'Biology'],
-  'UPSC': ['General Studies', 'History', 'Geography', 'Polity', 'Economy', 'Science & Technology'],
+  'Class 9 - CBSE': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi', 'Sanskrit'],
+  'Class 10 - CBSE': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi', 'Sanskrit'],
+  'Class 11 - CBSE': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics', 'Business Studies', 'History', 'Political Science'],
+  'Class 12 - CBSE': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics', 'Business Studies', 'History', 'Political Science'],
+  'Class 10 - ICSE': ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History & Civics', 'Geography'],
+  'Class 12 - ISC': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics'],
   'Class 9 - State Board': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi'],
   'Class 10 - State Board': ['Mathematics', 'Science', 'Social Science', 'English', 'Hindi'],
-  'Class 11 - State Board': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English'],
-  'Class 12 - State Board': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English'],
+  'Class 11 - State Board': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics'],
+  'Class 12 - State Board': ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'Accountancy', 'Economics'],
+  'JEE Mains & Advanced': ['Physics', 'Chemistry', 'Mathematics'],
+  'NEET': ['Physics', 'Chemistry', 'Biology (Botany)', 'Biology (Zoology)'],
+  'UPSC': ['General Studies', 'History', 'Geography', 'Indian Polity', 'Economy', 'Science & Technology', 'Environment & Ecology', 'Current Affairs'],
+  'CAT / MBA Entrance': ['Quantitative Aptitude', 'Verbal Ability', 'Logical Reasoning', 'Data Interpretation'],
+  'CLAT - Law Entrance': ['English', 'Current Affairs', 'Legal Reasoning', 'Logical Reasoning', 'Quantitative Techniques'],
+  'GATE': ['Engineering Mathematics', 'General Aptitude', 'Core Subject'],
+  'B.Tech / B.E - CSE': ['Data Structures & Algorithms', 'Database Management System', 'Operating Systems', 'Computer Networks', 'Object Oriented Programming', 'Software Engineering', 'Machine Learning', 'Web Development', 'Theory of Computation', 'Compiler Design'],
+  'B.Tech / B.E - ECE': ['Electronic Devices & Circuits', 'Digital Electronics', 'Signals & Systems', 'Communication Systems', 'Microprocessors', 'VLSI Design', 'Electromagnetic Theory', 'Control Systems'],
+  'B.Tech / B.E - Mechanical': ['Engineering Mechanics', 'Thermodynamics', 'Fluid Mechanics', 'Machine Design', 'Manufacturing Processes', 'Heat Transfer', 'Theory of Machines', 'Material Science'],
+  'B.Tech / B.E - Civil': ['Structural Analysis', 'Fluid Mechanics', 'Geotechnical Engineering', 'Transportation Engineering', 'Environmental Engineering', 'Concrete Technology', 'Surveying'],
+  'B.Tech / B.E - Other': ['Engineering Mathematics', 'Engineering Physics', 'Engineering Chemistry', 'General Aptitude'],
+  'Diploma / Polytechnic': ['Engineering Mathematics', 'Applied Physics', 'Applied Chemistry', 'Workshop Technology', 'Core Trade Subject'],
+  'B.Com / M.Com': ['Financial Accounting', 'Cost Accounting', 'Business Law', 'Income Tax', 'Auditing', 'Corporate Accounting', 'Financial Management', 'Business Statistics', 'Economics'],
+  'BBA / MBA': ['Management Principles', 'Marketing Management', 'Financial Management', 'Human Resource Management', 'Business Statistics', 'Operations Management', 'Strategic Management', 'Entrepreneurship'],
+  'CA Foundation': ['Principles of Accounting', 'Business Law', 'Quantitative Aptitude', 'Business Economics'],
+  'CA Intermediate': ['Accounting', 'Corporate Laws', 'Cost & Management Accounting', 'Taxation', 'Auditing', 'Financial Management'],
+  'CA Final': ['Financial Reporting', 'Strategic Financial Management', 'Advanced Auditing', 'Corporate Laws', 'Strategic Cost Management', 'Direct Tax Laws', 'Indirect Tax Laws'],
+  'B.Sc / M.Sc - Physics': ['Classical Mechanics', 'Quantum Mechanics', 'Thermodynamics', 'Electromagnetism', 'Optics', 'Nuclear Physics', 'Mathematical Physics'],
+  'B.Sc / M.Sc - Chemistry': ['Organic Chemistry', 'Inorganic Chemistry', 'Physical Chemistry', 'Analytical Chemistry', 'Spectroscopy', 'Biochemistry'],
+  'B.Sc / M.Sc - Mathematics': ['Real Analysis', 'Abstract Algebra', 'Linear Algebra', 'Differential Equations', 'Numerical Methods', 'Probability & Statistics', 'Topology'],
+  'B.Sc / M.Sc - Biology': ['Cell Biology', 'Genetics', 'Ecology', 'Microbiology', 'Biochemistry', 'Physiology', 'Evolutionary Biology'],
+  'B.Sc / M.Sc - Computer Science': ['Data Structures', 'Algorithms', 'Database Systems', 'Artificial Intelligence', 'Computer Graphics', 'Software Engineering'],
+  'BCA / MCA': ['C Programming', 'Data Structures', 'Database Management', 'Web Technologies', 'Java Programming', 'Python', 'Software Engineering', 'Computer Networks', 'Operating Systems'],
+  'MBBS / BDS': ['Anatomy', 'Physiology', 'Biochemistry', 'Pathology', 'Pharmacology', 'Microbiology', 'Community Medicine', 'Medicine', 'Surgery'],
+  'B.Pharma / M.Pharma': ['Pharmaceutical Chemistry', 'Pharmacology', 'Pharmaceutics', 'Pharmacognosy', 'Pharmaceutical Analysis'],
+  'Nursing': ['Anatomy & Physiology', 'Microbiology', 'Pharmacology', 'Medical Surgical Nursing', 'Community Health Nursing', 'Pediatric Nursing'],
+  'Allied Health Sciences': ['Anatomy', 'Physiology', 'Pathology', 'Core Specialization Subject'],
+  'BA / MA - History': ['Ancient History', 'Medieval History', 'Modern History', 'World History', 'Indian National Movement', 'Historiography'],
+  'BA / MA - Political Science': ['Indian Constitution', 'Comparative Politics', 'International Relations', 'Political Theory', 'Public Administration'],
+  'BA / MA - Economics': ['Microeconomics', 'Macroeconomics', 'Statistics', 'Indian Economy', 'International Economics', 'Development Economics'],
+  'BA / MA - Psychology': ['General Psychology', 'Developmental Psychology', 'Social Psychology', 'Abnormal Psychology', 'Cognitive Psychology', 'Research Methods'],
+  'BA / MA - English Literature': ['British Literature', 'American Literature', 'Indian Writing in English', 'Literary Theory', 'Linguistics', 'Poetry & Drama'],
+  'LLB / LLM - Law': ['Constitutional Law', 'Contract Law', 'Criminal Law', 'Family Law', 'Property Law', 'Administrative Law', 'International Law', 'Corporate Law'],
 }
 
 function timeNow() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
@@ -156,18 +199,22 @@ function ProfileSetup({ user, onDone }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: '#0D0D12' }}>
-      <div style={{ width: '100%', maxWidth: 400 }} className="fade-up">
+      <div style={{ width: '100%', maxWidth: 420 }} className="fade-up">
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 44, marginBottom: 8 }}>🎯</div>
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700 }}>Set up your profile</div>
-          <div style={{ fontSize: 13, color: '#7A79A0', marginTop: 6 }}>Memora will personalize AI answers based on your board & subject</div>
+          <div style={{ fontSize: 13, color: '#7A79A0', marginTop: 6 }}>Memora personalizes AI answers for your board, exam or course</div>
         </div>
         <div style={{ background: '#15151C', border: '1px solid #252535', borderRadius: 18, padding: 24 }}>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: '#7A79A0', display: 'block', marginBottom: 6 }}>Your board / exam *</label>
+            <label style={{ fontSize: 12, color: '#7A79A0', display: 'block', marginBottom: 6 }}>Your board / exam / course *</label>
             <select value={board} onChange={(e) => { setBoard(e.target.value); setSubject('') }} style={sel}>
-              <option value="">Select your board or exam...</option>
-              {Object.keys(BOARDS).map((b) => <option key={b} value={b}>{b}</option>)}
+              <option value="">Select your board, exam or course...</option>
+              {Object.entries(BOARD_GROUPS).map(([group, options]) => (
+                <optgroup key={group} label={group}>
+                  {options.map((b) => <option key={b} value={b}>{b}</option>)}
+                </optgroup>
+              ))}
             </select>
           </div>
           {subjects.length > 0 && (
