@@ -428,26 +428,38 @@ function PremiumModal({onClose,dark,user}){
         s.onload=resolve;s.onerror=reject
         document.body.appendChild(s)
       })
+
+      // Create order from backend
+      const orderRes=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create_order'})})
+      const orderData=await orderRes.json()
+      if(orderData.error){alert('Payment setup failed: '+orderData.error);setLoading(false);return}
+
       const options={
-        key:'rzp_test_placeholder',
-        amount:9900, // ₹99 in paise
-        currency:'INR',
+        key:orderData.keyId,
+        amount:orderData.amount,
+        currency:orderData.currency,
+        order_id:orderData.orderId,
         name:'Memora Premium',
         description:'Unlimited AI messages per month',
-        image:'https://memora-seven-nu.vercel.app/favicon.ico',
-        prefill:{email:user?.email||''},
+        prefill:{email:user?.email||'',name:user?.user_metadata?.name||''},
         theme:{color:'#7B6EF6'},
         handler:async function(response){
-          // On success, mark user as premium
-          await supabase.from('profiles').update({premium:true,premium_since:new Date().toISOString()}).eq('user_id',user.id)
-          setStep('success')
+          // Verify payment on backend
+          const verifyRes=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify_payment',razorpay_order_id:response.razorpay_order_id,razorpay_payment_id:response.razorpay_payment_id,razorpay_signature:response.razorpay_signature})})
+          const verifyData=await verifyRes.json()
+          if(verifyData.verified){
+            await supabase.from('profiles').update({premium:true,premium_since:new Date().toISOString()}).eq('user_id',user.id)
+            setStep('success')
+          }else{
+            alert('Payment verification failed. Contact support.')
+          }
         },
         modal:{ondismiss:function(){setLoading(false)}}
       }
       const rzp=new window.Razorpay(options)
       rzp.open()
     }catch(e){
-      alert('Payment gateway loading failed. Please try again.')
+      alert('Payment gateway error: '+(e.message||'Please try again.'))
     }
     setLoading(false)
   }
