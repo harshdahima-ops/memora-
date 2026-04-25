@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+const crypto = require('crypto')
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -9,24 +9,26 @@ export default async function handler(req, res) {
 
   const { action } = req.body
 
-  // Create order
   if (action === 'create_order') {
     try {
-      const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')
+      const keyId = process.env.RAZORPAY_KEY_ID
+      const keySecret = process.env.RAZORPAY_KEY_SECRET
+      if (!keyId || !keySecret) return res.status(500).json({ error: 'Authentication failed' })
+
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
       const response = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${auth}` },
-        body: JSON.stringify({ amount: 9900, currency: 'INR', receipt: 'memora_premium_' + Date.now() })
+        body: JSON.stringify({ amount: 9900, currency: 'INR', receipt: 'memora_' + Date.now() })
       })
       const order = await response.json()
       if (order.error) return res.status(500).json({ error: order.error.description })
-      return res.status(200).json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID })
+      return res.status(200).json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId })
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to create order' })
+      return res.status(500).json({ error: 'Failed to create order: ' + e.message })
     }
   }
 
-  // Verify payment
   if (action === 'verify_payment') {
     try {
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body
