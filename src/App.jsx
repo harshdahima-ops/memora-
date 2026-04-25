@@ -65,8 +65,11 @@ const BOARDS = {
 function timeNow(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
 function today(){return new Date().toISOString().split('T')[0]}
 
-async function callAI(messages,system,image=null,url=null){
-  const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,system,image,url})})
+async function callAI(messages,system,image,url){
+  const body={messages,system}
+  if(image)body.image=image
+  if(url)body.url=url
+  const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
   const data=await res.json()
   if(data.error)throw new Error(data.error)
   if(!data.reply)throw new Error('No response received')
@@ -86,7 +89,52 @@ function parseQuiz(text){
   }catch{return null}
 }
 
-// ── Markdown Renderer ──────────────────────────────────────────────────────
+const getCSS=(dark)=>`
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;}
+body{font-family:'DM Sans',sans-serif;background:${dark?'#0D0D12':'#F4F3FF'};color:${dark?'#EEEDF5':'#1A1A2E'};-webkit-font-smoothing:antialiased;}
+input,textarea,button,select{font-family:'DM Sans',sans-serif;}
+input::placeholder,textarea::placeholder{color:${dark?'#3A3A58':'#9999BB'};}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#7B6EF6!important;}
+button{cursor:pointer;}
+button:active{transform:scale(0.97);}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:${dark?'#252535':'#CCCCE0'};border-radius:4px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
+@keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-10px)}}
+@keyframes glow{0%,100%{opacity:0.5}50%{opacity:1}}
+.fade-up{animation:fadeUp 0.4s cubic-bezier(0.16,1,0.3,1);}
+.fade-up-d1{animation:fadeUp 0.4s 0.1s cubic-bezier(0.16,1,0.3,1) both;}
+.fade-up-d2{animation:fadeUp 0.4s 0.2s cubic-bezier(0.16,1,0.3,1) both;}
+.fade-up-d3{animation:fadeUp 0.4s 0.3s cubic-bezier(0.16,1,0.3,1) both;}
+.fade-up-d4{animation:fadeUp 0.4s 0.4s cubic-bezier(0.16,1,0.3,1) both;}
+`
+
+const T=(dark)=>({
+  bg:dark?'#0D0D12':'#F4F3FF',
+  card:dark?'#15151C':'#FFFFFF',
+  card2:dark?'#1C1C26':'#F0EFF8',
+  border:dark?'#252535':'#E0DFF0',
+  text:dark?'#EEEDF5':'#1A1A2E',
+  muted:dark?'#7A79A0':'#6B6B8A',
+  accent:'#7B6EF6',
+  accent2:'#5A50D4',
+  green:'#4DC9A0',
+  red:'#F06B6B',
+  sidebar:dark?'#111118':'#EBEBF8',
+})
+
+function Avatar({name,size=34}){
+  return <div style={{width:size,height:size,borderRadius:'50%',background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.38,fontWeight:700,color:'#fff',flexShrink:0}}>{(name||'U').slice(0,2).toUpperCase()}</div>
+}
+function Tag({text,color='#7B6EF6'}){
+  return <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:color+'22',color,fontWeight:600,flexShrink:0}}>{text}</span>
+}
+
 function fmtInline(text,dark){
   if(!text)return''
   const cd={background:dark?'#1C1C26':'#F0EFF8',borderRadius:3,padding:'1px 5px',fontSize:'0.88em',fontFamily:'monospace',color:dark?'#A78BFA':'#6D5FC7'}
@@ -109,95 +157,53 @@ function fmtInline(text,dark){
 
 function Markdown({content,dark=true}){
   if(!content)return null
-  const c={h1:{fontSize:18,fontWeight:700,margin:'10px 0 4px',color:dark?'#EEEDF5':'#1A1A2E'},h2:{fontSize:16,fontWeight:600,margin:'8px 0 4px',color:dark?'#EEEDF5':'#1A1A2E'},h3:{fontSize:14,fontWeight:600,margin:'6px 0 3px',color:dark?'#EEEDF5':'#1A1A2E'},p:{margin:'3px 0',lineHeight:1.7,fontSize:14},li:{paddingLeft:16,marginBottom:3,lineHeight:1.65,fontSize:14},pre:{background:dark?'#0D0D12':'#F0EFF8',borderRadius:8,padding:'10px 12px',fontSize:12,overflow:'auto',margin:'8px 0',fontFamily:'monospace'},hr:{border:'none',borderTop:'1px solid '+(dark?'#252535':'#E0DFF5'),margin:'10px 0'}}
+  const t=T(dark)
+  const c={h1:{fontSize:18,fontWeight:700,margin:'10px 0 4px',color:t.text},h2:{fontSize:16,fontWeight:600,margin:'8px 0 4px',color:t.text},h3:{fontSize:14,fontWeight:600,margin:'6px 0 3px',color:t.text},p:{margin:'3px 0',lineHeight:1.7,fontSize:14},li:{paddingLeft:16,marginBottom:3,lineHeight:1.65,fontSize:14},pre:{background:dark?'#0D0D12':'#F0EFF8',borderRadius:8,padding:'10px 12px',fontSize:12,overflow:'auto',margin:'8px 0',fontFamily:'monospace'},hr:{border:'none',borderTop:'1px solid '+(dark?'#252535':'#E0DFF5'),margin:'10px 0'}}
   const lines=content.split('\n'),els=[];let i=0,inCode=false,codeLines=[]
   while(i<lines.length){
     const l=lines[i]
-    if(l.startsWith('```')){
-      if(!inCode){inCode=true;codeLines=[]}
-      else{els.push(<pre key={i} style={c.pre}><code>{codeLines.join('\n')}</code></pre>);inCode=false;codeLines=[]}
-      i++;continue
-    }
+    if(l.startsWith('```')){inCode?( els.push(<pre key={i} style={c.pre}><code>{codeLines.join('\n')}</code></pre>),inCode=false,codeLines=[]):(inCode=true,codeLines=[]);i++;continue}
     if(inCode){codeLines.push(l);i++;continue}
     if(l.startsWith('### '))els.push(<h3 key={i} style={c.h3}>{fmtInline(l.slice(4),dark)}</h3>)
     else if(l.startsWith('## '))els.push(<h2 key={i} style={c.h2}>{fmtInline(l.slice(3),dark)}</h2>)
     else if(l.startsWith('# '))els.push(<h1 key={i} style={c.h1}>{fmtInline(l.slice(2),dark)}</h1>)
-    else if(l.startsWith('---')||l.startsWith('***'))els.push(<hr key={i} style={c.hr}/>)
-    else if(l.startsWith('- ')||l.startsWith('* '))els.push(<div key={i} style={c.li}>• {fmtInline(l.slice(2),dark)}</div>)
-    else if(/^\d+\. /.test(l)){const[,n,t]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={c.li}>{n}. {fmtInline(t,dark)}</div>)}
+    else if(l.startsWith('---'))els.push(<hr key={i} style={c.hr}/>)
+    else if(l.startsWith('- ')||l.startsWith('* '))els.push(<div key={i} style={{...c.li,color:t.muted}}>• {fmtInline(l.slice(2),dark)}</div>)
+    else if(/^\d+\. /.test(l)){const[,n,tx]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={{...c.li,color:t.muted}}>{n}. {fmtInline(tx,dark)}</div>)}
     else if(l.trim()==='')els.push(<div key={i} style={{height:6}}/>)
-    else els.push(<p key={i} style={{...c.p,color:dark?'#D4D3E8':'#2A2A3E'}}>{fmtInline(l,dark)}</p>)
+    else els.push(<p key={i} style={{...c.p,color:t.muted}}>{fmtInline(l,dark)}</p>)
     i++
   }
   return <div style={{lineHeight:1.6}}>{els}</div>
 }
 
-// ── Global CSS ─────────────────────────────────────────────────────────────
-const getCSS=(dark)=>`
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body,#root{height:100%;}
-body{font-family:'DM Sans',sans-serif;background:${dark?'#0D0D12':'#F4F3FF'};color:${dark?'#EEEDF5':'#1A1A2E'};-webkit-font-smoothing:antialiased;}
-input,textarea,button,select{font-family:'DM Sans',sans-serif;}
-input::placeholder,textarea::placeholder{color:${dark?'#3A3A58':'#9999BB'};}
-input:focus,textarea:focus,select:focus{outline:none;border-color:#7B6EF6!important;}
-button{cursor:pointer;}
-button:active{transform:scale(0.97);}
-::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-thumb{background:${dark?'#252535':'#CCCCE0'};border-radius:4px;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
-@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
-.fade-up{animation:fadeUp 0.3s ease;}
-.slide-in{animation:slideIn 0.2s ease;}
-`
-
-// ── Theme colors ───────────────────────────────────────────────────────────
-const T=(dark)=>({
-  bg: dark?'#0D0D12':'#F4F3FF',
-  card: dark?'#15151C':'#FFFFFF',
-  card2: dark?'#1C1C26':'#F0EFF8',
-  border: dark?'#252535':'#E0DFF0',
-  text: dark?'#EEEDF5':'#1A1A2E',
-  muted: dark?'#7A79A0':'#6B6B8A',
-  accent:'#7B6EF6',
-  accent2:'#5A50D4',
-  green:'#4DC9A0',
-  red:'#F06B6B',
-  sidebar: dark?'#111118':'#EBEBF8',
-})
-
-// ── Components ─────────────────────────────────────────────────────────────
-function Avatar({name,size=34}){
-  return <div style={{width:size,height:size,borderRadius:'50%',background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.38,fontWeight:700,color:'#fff',flexShrink:0}}>{(name||'U').slice(0,2).toUpperCase()}</div>
-}
-
-function Tag({text,color='#7B6EF6'}){
-  return <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:color+'22',color,fontWeight:600,flexShrink:0}}>{text}</span>
-}
-
-// ── Auth ───────────────────────────────────────────────────────────────────
+// ── LANDING / AUTH SCREEN ──────────────────────────────────────────────────
 function AuthScreen({onAuth,dark}){
   const t=T(dark)
-  const [mode,setMode]=useState('login')
+  const [view,setView]=useState('landing') // landing | login | signup
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
   const [err,setErr]=useState('')
   const [loading,setLoading]=useState(false)
 
+  async function googleLogin(){
+    setLoading(true)
+    const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}})
+    if(error){setErr(error.message);setLoading(false)}
+  }
+
   async function submit(){
     setErr('')
     if(!email.trim()||!pass.trim()){setErr('Email and password required.');return}
-    if(mode==='signup'&&!name.trim()){setErr('Name is required.');return}
+    if(view==='signup'&&!name.trim()){setErr('Name is required.');return}
     setLoading(true)
     try{
-      if(mode==='signup'){
+      if(view==='signup'){
         const{data,error}=await supabase.auth.signUp({email:email.trim(),password:pass.trim(),options:{data:{name:name.trim()}}})
         if(error)throw error
         if(data.user)onAuth(data.user)
-        else setErr('Check email to confirm.')
+        else setErr('Account created! You can now login.')
       }else{
         const{data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password:pass.trim()})
         if(error)throw error
@@ -207,33 +213,145 @@ function AuthScreen({onAuth,dark}){
     setLoading(false)
   }
 
-  const inp={width:'100%',padding:'10px 14px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14}
+  const inp={width:'100%',padding:'12px 16px',borderRadius:12,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14}
+  const features=[{icon:'🎯',text:'Syllabus-aware AI for CBSE, JEE, NEET, CA & 40+ courses'},{icon:'🧩',text:'Quiz mode that tracks your weak topics automatically'},{icon:'📝',text:'Smart notes with markdown formatting'},{icon:'📎',text:'Analyze images, PDFs and URLs with AI'}]
+
+  if(view==='landing'){
+    return(
+      <div style={{minHeight:'100vh',background:'#0A0A10',color:'#EEEDF5',overflow:'auto'}}>
+        {/* BG glow */}
+        <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none'}}>
+          <div style={{position:'absolute',top:'-20%',left:'50%',transform:'translateX(-50%)',width:600,height:600,background:'radial-gradient(circle,rgba(123,110,246,0.15) 0%,transparent 70%)',animation:'glow 4s ease infinite'}}/>
+          <div style={{position:'absolute',bottom:'-10%',right:'-10%',width:400,height:400,background:'radial-gradient(circle,rgba(77,201,160,0.08) 0%,transparent 70%)'}}/>
+        </div>
+
+        {/* Nav */}
+        <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 32px',position:'relative',zIndex:10}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>🧠 <span style={{color:'#7B6EF6'}}>Memora</span></div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>setView('login')} style={{padding:'8px 20px',borderRadius:10,border:'1px solid #252535',background:'transparent',color:'#EEEDF5',fontSize:13,fontWeight:500}}>Login</button>
+            <button onClick={()=>setView('signup')} style={{padding:'8px 20px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600}}>Sign Up Free</button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div style={{textAlign:'center',padding:'60px 20px 40px',position:'relative',zIndex:10,maxWidth:700,margin:'0 auto'}}>
+          <div className="fade-up" style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(123,110,246,0.12)',border:'1px solid rgba(123,110,246,0.3)',borderRadius:20,padding:'6px 16px',fontSize:12,color:'#A78BFA',fontWeight:500,marginBottom:24}}>
+            ✨ Your Personal AI Study Companion
+          </div>
+          <h1 className="fade-up-d1" style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(36px,7vw,64px)',fontWeight:800,lineHeight:1.1,marginBottom:20,letterSpacing:-1}}>
+            Study Smarter.<br/><span style={{color:'#7B6EF6'}}>Score Higher.</span>
+          </h1>
+          <p className="fade-up-d2" style={{fontSize:16,color:'#7A79A0',lineHeight:1.7,marginBottom:36,maxWidth:500,margin:'0 auto 36px'}}>
+            AI-powered study assistant built for Indian students. Personalized for your board, exam, or college course.
+          </p>
+          <div className="fade-up-d3" style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap',marginBottom:16}}>
+            <button onClick={googleLogin} style={{display:'flex',alignItems:'center',gap:10,padding:'13px 24px',borderRadius:12,border:'1px solid #252535',background:'#15151C',color:'#EEEDF5',fontSize:14,fontWeight:500}}>
+              <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
+              Continue with Google
+            </button>
+            <button onClick={()=>setView('signup')} style={{padding:'13px 28px',borderRadius:12,border:'none',background:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600}}>Create Free Account</button>
+          </div>
+          <div className="fade-up-d4" style={{fontSize:12,color:'#3A3A58'}}>No credit card required • 20 free AI messages per day</div>
+        </div>
+
+        {/* Features */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,maxWidth:800,margin:'20px auto 60px',padding:'0 24px',position:'relative',zIndex:10}}>
+          {features.map((f,i)=>(
+            <div key={i} className="fade-up" style={{background:'#15151C',border:'1px solid #252535',borderRadius:14,padding:'16px 18px',animationDelay:i*0.1+'s'}}>
+              <div style={{fontSize:24,marginBottom:8}}>{f.icon}</div>
+              <div style={{fontSize:13,color:'#7A79A0',lineHeight:1.6}}>{f.text}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div style={{display:'flex',justifyContent:'center',gap:40,flexWrap:'wrap',padding:'20px 24px 60px',position:'relative',zIndex:10}}>
+          {[['40+','Boards & Courses'],['Free','To Start'],['AI','Powered Quizzes'],['24/7','Always Available']].map(([val,label],i)=>(
+            <div key={i} style={{textAlign:'center'}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:'#7B6EF6'}}>{val}</div>
+              <div style={{fontSize:12,color:'#3A3A58',marginTop:2}}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Already have account */}
+        <div style={{textAlign:'center',padding:'0 0 40px',color:'#3A3A58',fontSize:13,position:'relative',zIndex:10}}>
+          Already have an account?{' '}
+          <button onClick={()=>setView('login')} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Login →</button>
+        </div>
+      </div>
+    )
+  }
 
   return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:t.bg}}>
-      <div style={{width:'100%',maxWidth:360}} className="fade-up">
-        <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{fontSize:48,marginBottom:8}}>🧠</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:700,color:t.text}}>Memora</div>
-          <div style={{fontSize:13,color:t.muted,marginTop:4}}>AI study companion for every Indian student</div>
+    <div style={{minHeight:'100vh',display:'flex',background:'#0A0A10',overflow:'auto'}}>
+      {/* Left panel */}
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:40,position:'relative'}}>
+        <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
+          <div style={{position:'absolute',top:'30%',left:'30%',width:300,height:300,background:'radial-gradient(circle,rgba(123,110,246,0.12) 0%,transparent 70%)'}}/>
         </div>
-        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:18,padding:24}}>
-          <div style={{display:'flex',background:t.card2,borderRadius:10,padding:3,marginBottom:22}}>
-            {['login','signup'].map(m=>(
-              <button key={m} onClick={()=>{setMode(m);setErr('')}} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontSize:13,fontWeight:500,transition:'all 0.2s',background:mode===m?'#7B6EF6':'transparent',color:mode===m?'#fff':t.muted}}>
-                {m==='login'?'Login':'Sign Up'}
-              </button>
-            ))}
+        <div style={{width:'100%',maxWidth:380,position:'relative',zIndex:1}} className="fade-up">
+          <button onClick={()=>setView('landing')} style={{background:'none',border:'none',color:'#7A79A0',fontSize:13,cursor:'pointer',marginBottom:24,display:'flex',alignItems:'center',gap:6}}>← Back</button>
+          <div style={{marginBottom:28}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#EEEDF5',marginBottom:6}}>
+              {view==='login'?'Welcome back 👋':'Create your account'}
+            </div>
+            <div style={{fontSize:13,color:'#7A79A0'}}>{view==='login'?'Login to continue your learning journey':'Join thousands of students studying smarter'}</div>
           </div>
-          {mode==='signup'&&<div style={{marginBottom:14}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Your name</label><input style={inp} placeholder="e.g. Harsh" value={name} onChange={e=>setName(e.target.value)}/></div>}
-          <div style={{marginBottom:14}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Email</label><input style={inp} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-          <div style={{marginBottom:20}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Password</label><input style={inp} type="password" placeholder="min 6 characters" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/></div>
-          {err&&<div style={{fontSize:13,color:t.red,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:8,padding:'9px 12px',marginBottom:14,textAlign:'center'}}>{err}</div>}
-          <button onClick={submit} disabled={loading} style={{width:'100%',padding:11,borderRadius:10,border:'none',background:loading?t.border:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600,cursor:loading?'not-allowed':'pointer'}}>
-            {loading?'Please wait...':(mode==='login'?'Login':'Create Account')}
+
+          {/* Google */}
+          <button onClick={googleLogin} disabled={loading} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'12px',borderRadius:12,border:'1px solid #252535',background:'#15151C',color:'#EEEDF5',fontSize:14,fontWeight:500,marginBottom:16}}>
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
+            Continue with Google
           </button>
+
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <div style={{flex:1,height:1,background:'#252535'}}/>
+            <span style={{fontSize:12,color:'#3A3A58'}}>or</span>
+            <div style={{flex:1,height:1,background:'#252535'}}/>
+          </div>
+
+          {view==='signup'&&(
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Your name</label>
+              <input style={inp} placeholder="e.g. Harsh" value={name} onChange={e=>setName(e.target.value)}/>
+            </div>
+          )}
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Email address</label>
+            <input style={inp} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Password</label>
+            <input style={inp} type="password" placeholder="min 6 characters" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+          </div>
+
+          {err&&<div style={{fontSize:13,color:'#F06B6B',background:'#F06B6B15',border:'1px solid #F06B6B30',borderRadius:10,padding:'10px 14px',marginBottom:14,textAlign:'center'}}>{err}</div>}
+
+          <button onClick={submit} disabled={loading} style={{width:'100%',padding:13,borderRadius:12,border:'none',background:loading?'#252535':'linear-gradient(135deg,#7B6EF6,#5A50D4)',color:'#fff',fontSize:14,fontWeight:700,cursor:loading?'not-allowed':'pointer'}}>
+            {loading?'Please wait...':(view==='login'?'Login to Memora':'Create Free Account')}
+          </button>
+
+          <div style={{textAlign:'center',marginTop:16,fontSize:13,color:'#7A79A0'}}>
+            {view==='login'?<>No account? <button onClick={()=>{setView('signup');setErr('')}} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Sign up free</button></>:<>Already have an account? <button onClick={()=>{setView('login');setErr('')}} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Login</button></>}
+          </div>
         </div>
-        <div style={{textAlign:'center',marginTop:16,fontSize:12,color:t.muted}}>20 free AI messages per day • No credit card required</div>
+      </div>
+
+      {/* Right panel - only desktop */}
+      <div style={{flex:1,background:'linear-gradient(135deg,#111118,#0D0D1A)',display:'flex',alignItems:'center',justifyContent:'center',padding:40,borderLeft:'1px solid #252535'}} className="hide-mobile">
+        <div style={{textAlign:'center',maxWidth:320}}>
+          <div style={{fontSize:64,marginBottom:20,animation:'float 3s ease infinite'}}>🧠</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:'#EEEDF5',marginBottom:10}}>Study Smarter with AI</div>
+          <div style={{fontSize:14,color:'#7A79A0',lineHeight:1.7,marginBottom:24}}>Personalized for your board, exam, or college course. Quiz mode, notes, weak topic tracking and more.</div>
+          {[['🎯','40+ boards & courses supported'],['🧩','AI quiz with answer checking'],['📊','Progress & weak topic tracker'],['⭐','Premium: unlimited messages']].map(([ic,tx],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,background:'rgba(123,110,246,0.08)',border:'1px solid rgba(123,110,246,0.15)',borderRadius:10,padding:'10px 14px',marginBottom:8,textAlign:'left'}}>
+              <span style={{fontSize:18}}>{ic}</span>
+              <span style={{fontSize:13,color:'#A0A0C0'}}>{tx}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -246,7 +364,6 @@ function ProfileSetup({user,onDone,dark}){
   const [subject,setSubject]=useState('')
   const [loading,setLoading]=useState(false)
   const subjects=board?BOARDS[board]:[]
-
   async function save(){
     if(!board)return
     setLoading(true)
@@ -254,9 +371,7 @@ function ProfileSetup({user,onDone,dark}){
     onDone({board,subject})
     setLoading(false)
   }
-
   const sel={width:'100%',padding:'10px 14px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card2,color:board?t.text:t.muted,fontSize:14}
-
   return(
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:t.bg}}>
       <div style={{width:'100%',maxWidth:420}} className="fade-up">
@@ -271,9 +386,7 @@ function ProfileSetup({user,onDone,dark}){
             <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={sel}>
               <option value="">Select your board, exam or course...</option>
               {Object.entries(BOARD_GROUPS).map(([group,opts])=>(
-                <optgroup key={group} label={group}>
-                  {opts.map(b=><option key={b} value={b}>{b}</option>)}
-                </optgroup>
+                <optgroup key={group} label={group}>{opts.map(b=><option key={b} value={b}>{b}</option>)}</optgroup>
               ))}
             </select>
           </div>
@@ -286,7 +399,7 @@ function ProfileSetup({user,onDone,dark}){
               </select>
             </div>
           )}
-          <button onClick={save} disabled={!board||loading} style={{width:'100%',padding:11,borderRadius:10,border:'none',background:!board||loading?t.border:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600,cursor:!board?'not-allowed':'pointer',opacity:!board?0.5:1}}>
+          <button onClick={save} disabled={!board||loading} style={{width:'100%',padding:11,borderRadius:10,border:'none',background:!board||loading?t.border:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600,opacity:!board?0.5:1}}>
             {loading?'Saving...':'Start Learning →'}
           </button>
         </div>
@@ -299,25 +412,70 @@ function ProfileSetup({user,onDone,dark}){
 }
 
 // ── Premium Modal ──────────────────────────────────────────────────────────
-function PremiumModal({onClose,dark}){
+function PremiumModal({onClose,dark,user}){
   const t=T(dark)
-  const features=[
-    {icon:'∞',label:'Unlimited AI messages per day'},
-    {icon:'🧩',label:'Unlimited quiz questions'},
-    {icon:'📁',label:'Upload images, PDFs & URLs'},
-    {icon:'📊',label:'Advanced progress analytics'},
-    {icon:'🎯',label:'Personalized study plans'},
-    {icon:'⚡',label:'Priority AI response speed'},
-  ]
+  const [loading,setLoading]=useState(false)
+  const [step,setStep]=useState('plan') // plan | pay | success
+
+  async function startPayment(){
+    setLoading(true)
+    try{
+      // Load Razorpay script
+      await new Promise((resolve,reject)=>{
+        if(window.Razorpay){resolve();return}
+        const s=document.createElement('script')
+        s.src='https://checkout.razorpay.com/v1/checkout.js'
+        s.onload=resolve;s.onerror=reject
+        document.body.appendChild(s)
+      })
+      const options={
+        key:'rzp_test_placeholder',
+        amount:9900, // ₹99 in paise
+        currency:'INR',
+        name:'Memora Premium',
+        description:'Unlimited AI messages per month',
+        image:'https://memora-seven-nu.vercel.app/favicon.ico',
+        prefill:{email:user?.email||''},
+        theme:{color:'#7B6EF6'},
+        handler:async function(response){
+          // On success, mark user as premium
+          await supabase.from('profiles').update({premium:true,premium_since:new Date().toISOString()}).eq('user_id',user.id)
+          setStep('success')
+        },
+        modal:{ondismiss:function(){setLoading(false)}}
+      }
+      const rzp=new window.Razorpay(options)
+      rzp.open()
+    }catch(e){
+      alert('Payment gateway loading failed. Please try again.')
+    }
+    setLoading(false)
+  }
+
+  if(step==='success'){
+    return(
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:32,width:'100%',maxWidth:360,textAlign:'center'}} className="fade-up">
+          <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:t.text,marginBottom:8}}>You're Premium!</div>
+          <div style={{fontSize:14,color:t.muted,marginBottom:24}}>Enjoy unlimited AI messages, quizzes, and all premium features.</div>
+          <button onClick={()=>{onClose();window.location.reload()}} style={{width:'100%',padding:12,borderRadius:12,border:'none',background:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:700}}>Start Studying →</button>
+        </div>
+      </div>
+    )
+  }
+
+  const features=[{icon:'∞',label:'Unlimited AI messages per day'},{icon:'🧩',label:'Unlimited quiz questions'},{icon:'📁',label:'Upload images & analyze URLs'},{icon:'📊',label:'Advanced progress analytics'},{icon:'🎯',label:'Personalized study plans'},{icon:'⚡',label:'Priority AI response speed'}]
+
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:400}} className="fade-up">
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20,overflowY:'auto'}}>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:420}} className="fade-up">
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}>⭐</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:t.text}}>Memora Premium</div>
           <div style={{fontSize:13,color:t.muted,marginTop:4}}>Unlock your full learning potential</div>
         </div>
-        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:24}}>
+        <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:22}}>
           {features.map((f,i)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:t.card2,borderRadius:10}}>
               <span style={{fontSize:18,width:28,textAlign:'center'}}>{f.icon}</span>
@@ -325,14 +483,24 @@ function PremiumModal({onClose,dark}){
             </div>
           ))}
         </div>
-        <div style={{background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',borderRadius:12,padding:'14px 20px',textAlign:'center',marginBottom:14}}>
-          <div style={{fontSize:26,fontWeight:700,color:'#fff'}}>₹99 <span style={{fontSize:14,fontWeight:400,opacity:0.8}}>/ month</span></div>
-          <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:2}}>Cancel anytime • Instant access</div>
+
+        {/* Price */}
+        <div style={{background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',borderRadius:14,padding:'16px 20px',textAlign:'center',marginBottom:14}}>
+          <div style={{fontSize:28,fontWeight:800,color:'#fff',fontFamily:"'Syne',sans-serif"}}>₹99 <span style={{fontSize:15,fontWeight:400,opacity:0.8}}>/ month</span></div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:3}}>Cancel anytime • Instant access</div>
         </div>
-        <button style={{width:'100%',padding:12,borderRadius:12,border:'none',background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',color:'#fff',fontSize:15,fontWeight:700,marginBottom:10}}
-          onClick={()=>alert('Razorpay payment coming soon! Setting up payment gateway.')}>
-          Upgrade to Premium
+
+        {/* Payment methods */}
+        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:16}}>
+          {['UPI','Credit Card','Debit Card','Net Banking','Wallets'].map(m=>(
+            <span key={m} style={{fontSize:10,padding:'3px 8px',borderRadius:8,background:t.card2,border:`1px solid ${t.border}`,color:t.muted}}>{m}</span>
+          ))}
+        </div>
+
+        <button onClick={startPayment} disabled={loading} style={{width:'100%',padding:13,borderRadius:12,border:'none',background:loading?t.border:'linear-gradient(135deg,#7B6EF6,#5A50D4)',color:'#fff',fontSize:15,fontWeight:700,marginBottom:10,cursor:loading?'not-allowed':'pointer'}}>
+          {loading?'Loading payment...':'Pay ₹99 & Upgrade Now'}
         </button>
+        <div style={{fontSize:11,color:t.muted,textAlign:'center',marginBottom:12}}>🔒 Secure payment powered by Razorpay</div>
         <button onClick={onClose} style={{width:'100%',padding:10,borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Maybe later</button>
       </div>
     </div>
@@ -348,10 +516,10 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   const [typing,setTyping]=useState(false)
   const [usage,setUsage]=useState(0)
   const [loading,setLoading]=useState(true)
-  const [attachment,setAttachment]=useState(null) // {type:'image'|'url', data:string, preview:string}
+  const [attachment,setAttachment]=useState(null)
   const [urlInput,setUrlInput]=useState('')
   const [showAttach,setShowAttach]=useState(false)
-  const [activeQuiz,setActiveQuiz]=useState(null) // {question,options,correct,msgId,selected,result}
+  const [activeQuiz,setActiveQuiz]=useState(null)
   const bottomRef=useRef(null)
   const fileRef=useRef(null)
 
@@ -370,64 +538,47 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
 
   async function trackUsage(){
     const{data}=await supabase.from('usage').select('count').eq('user_id',user.id).eq('date',today()).single()
-    if(data){
-      await supabase.from('usage').update({count:data.count+1}).eq('user_id',user.id).eq('date',today())
-      setUsage(data.count+1)
-    }else{
-      await supabase.from('usage').insert({user_id:user.id,date:today(),count:1})
-      setUsage(1)
-    }
+    if(data){await supabase.from('usage').update({count:data.count+1}).eq('user_id',user.id).eq('date',today());setUsage(data.count+1)}
+    else{await supabase.from('usage').insert({user_id:user.id,date:today(),count:1});setUsage(1)}
   }
 
   function handleFile(e){
-    const file=e.target.files[0]
-    if(!file)return
+    const file=e.target.files[0];if(!file)return
     if(file.type.startsWith('image/')){
       const reader=new FileReader()
       reader.onload=ev=>setAttachment({type:'image',data:ev.target.result,preview:file.name})
       reader.readAsDataURL(file)
-    }else{
-      alert('Only image files are supported for now. PDF support coming soon!')
-    }
+    }else alert('Only image files supported for now.')
     setShowAttach(false)
   }
 
   function addUrl(){
     if(!urlInput.trim())return
     setAttachment({type:'url',data:urlInput.trim(),preview:urlInput.trim()})
-    setUrlInput('')
-    setShowAttach(false)
+    setUrlInput('');setShowAttach(false)
   }
 
   function buildSystem(){
     let sys='You are Memora, a smart AI study assistant for Indian students.'
-    if(profile?.board)sys+=` Student is studying ${profile.board}.`
-    if(profile?.subject)sys+=` Main subject: ${profile.subject}.`
-    sys+=' Be clear, precise, use simple English.'
-    if(mode==='summarize')sys+=' Give a concise bullet-point summary.'
-    if(mode==='explain')sys+=' Explain step by step in very simple terms with examples.'
-    if(mode==='quiz')sys+=` Generate EXACTLY 1 multiple choice question. Use EXACTLY this format:
-QUESTION: [your question here]
-A) [option A]
-B) [option B]
-C) [option C]
-D) [option D]
-ANSWER: [single letter A, B, C, or D only]`
-    if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>`[${n.tag}] ${n.title}: ${n.body}`).join('\n')
+    if(profile?.board)sys+=' Student is studying '+profile.board+'.'
+    if(profile?.subject)sys+=' Main subject: '+profile.subject+'.'
+    sys+=' Be clear, precise, use simple English. Format responses with markdown: use **bold**, ## headings, - bullet points, and code blocks where relevant.'
+    if(mode==='summarize')sys+=' Give a concise bullet-point summary using markdown.'
+    if(mode==='explain')sys+=' Explain step by step in very simple terms with examples. Use numbered lists and bold for key terms.'
+    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question. Use EXACTLY this format:\nQUESTION: [question here]\nA) [option A]\nB) [option B]\nC) [option C]\nD) [option D]\nANSWER: [single letter A, B, C, or D only]'
+    if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
     if(weakTopics.length>0)sys+='\n\nWeak topics: '+weakTopics.join(', ')
     return sys
   }
 
   async function send(){
-    const q=input.trim()
-    if(!q||typing)return
-    const limit=isPremium?999:FREE_LIMIT
+    const q=input.trim();if(!q||typing)return
+    const limit=isPremium?9999:FREE_LIMIT
     if(usage>=limit){onUpgrade();return}
-    setInput('')
-    setActiveQuiz(null)
-    const userMsg={id:Date.now(),user_id:user.id,role:'user',content:q+(attachment?.type==='url'?` [URL: ${attachment.data}]':''),created_at:new Date().toISOString()}
-    setMessages(prev=>[...prev,userMsg])
-    setTyping(true)
+    setInput('');setActiveQuiz(null)
+    const attNote=attachment?.type==='url'?' [URL: '+attachment.data+']':''
+    const userMsg={id:Date.now(),user_id:user.id,role:'user',content:q+attNote,created_at:new Date().toISOString()}
+    setMessages(prev=>[...prev,userMsg]);setTyping(true)
     await supabase.from('messages').insert({user_id:user.id,role:'user',content:userMsg.content})
     const apiMsgs=[...messages,userMsg].slice(-12).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}))
     const img=attachment?.type==='image'?attachment.data:null
@@ -440,22 +591,19 @@ ANSWER: [single letter A, B, C, or D only]`
       const aiMsg={id:aiId,user_id:user.id,role:'ai',content:reply,created_at:new Date().toISOString()}
       setMessages(prev=>[...prev,aiMsg])
       await supabase.from('messages').insert({user_id:user.id,role:'ai',content:reply})
-      if(mode==='quiz'){
-        const parsed=parseQuiz(reply)
-        if(parsed)setActiveQuiz({...parsed,msgId:aiId,selected:null,result:null})
-      }
+      if(mode==='quiz'){const parsed=parseQuiz(reply);if(parsed)setActiveQuiz({...parsed,msgId:aiId,selected:null,result:null})}
     }catch(e){
       setMessages(prev=>[...prev,{id:Date.now()+1,role:'ai',content:'Error: '+(e.message||'Try again.'),created_at:new Date().toISOString()}])
     }
     setTyping(false)
   }
 
-  function submitQuizAnswer(){
+  function submitQuiz(){
     if(!activeQuiz||!activeQuiz.selected)return
     const correct=activeQuiz.selected===activeQuiz.correct
     setActiveQuiz(prev=>({...prev,result:correct}))
     if(!correct){
-      const topic=input||messages[messages.length-2]?.content||'Unknown'
+      const topic=messages[messages.length-2]?.content||'Unknown topic'
       if(!weakTopics.includes(topic)){
         const updated=[...weakTopics,topic]
         setWeakTopics(updated)
@@ -469,11 +617,8 @@ ANSWER: [single letter A, B, C, or D only]`
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      {/* Profile + usage bar */}
       <div style={{padding:'5px 14px',background:t.card2,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
-        <span style={{fontSize:11,color:'#7B6EF6',fontWeight:500}}>
-          {profile?.board?`🎯 ${profile.board}${profile.subject?' · '+profile.subject:''}`:'🎯 No board set'}
-        </span>
+        <span style={{fontSize:11,color:'#7B6EF6',fontWeight:500}}>{profile?.board?'🎯 '+profile.board+(profile.subject?' · '+profile.subject:''):'🎯 No board set'}</span>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {isPremium?<Tag text="⭐ Premium" color="#F0A86B"/>:(
             <>
@@ -481,13 +626,12 @@ ANSWER: [single letter A, B, C, or D only]`
                 <div style={{width:Math.min((usage/FREE_LIMIT)*100,100)+'%',height:'100%',background:limitHit?t.red:'#7B6EF6',borderRadius:4}}/>
               </div>
               <span style={{fontSize:11,color:limitHit?t.red:t.muted}}>{FREE_LIMIT-usage} left</span>
-              <button onClick={onUpgrade} style={{fontSize:10,background:'#7B6EF622',border:'1px solid #7B6EF644',borderRadius:10,color:'#7B6EF6',padding:'2px 7px',fontWeight:600}}>Upgrade</button>
+              <button onClick={onUpgrade} style={{fontSize:10,background:'#7B6EF622',border:'1px solid #7B6EF644',borderRadius:10,color:'#7B6EF6',padding:'2px 7px',fontWeight:600}}>⭐ Pro</button>
             </>
           )}
         </div>
       </div>
 
-      {/* Messages */}
       <div style={{flex:1,overflowY:'auto',padding:'16px 14px'}}>
         {loading&&<div style={{textAlign:'center',padding:40}}><div style={{fontSize:24,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>}
         {!loading&&messages.length===0&&(
@@ -502,16 +646,13 @@ ANSWER: [single letter A, B, C, or D only]`
             </div>
           </div>
         )}
+
         {messages.map(m=>(
           <div key={m.id} style={{display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start',marginBottom:14}}>
             {m.role==='ai'&&<div style={{fontSize:11,color:t.muted,marginBottom:4,paddingLeft:2}}>🧠 Memora</div>}
             <div style={{maxWidth:'85%',padding:'10px 14px',fontSize:14,borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?'#7B6EF6':t.card,border:m.role==='ai'?`1px solid ${t.border}`:'none',color:m.role==='user'?'#fff':t.text}}>
-              {m.role==='ai'?(
-                <Markdown content={activeQuiz&&activeQuiz.msgId===m.id?m.content.replace(/QUESTION:[\s\S]*$/,'').trim():m.content} dark={dark}/>
-              ):m.content}
+              {m.role==='ai'?<Markdown content={activeQuiz&&activeQuiz.msgId===m.id?m.content.replace(/QUESTION:[\s\S]*$/,'').trim():m.content} dark={dark}/>:m.content}
             </div>
-
-            {/* Quiz UI */}
             {activeQuiz&&activeQuiz.msgId===m.id&&(
               <div style={{maxWidth:'85%',marginTop:10,width:'100%'}}>
                 <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px'}}>
@@ -526,70 +667,65 @@ ANSWER: [single letter A, B, C, or D only]`
                       }
                       return(
                         <button key={letter} onClick={()=>activeQuiz.result===null&&setActiveQuiz(prev=>({...prev,selected:letter}))}
-                          style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${border}`,background:bg,color:col,fontSize:13,textAlign:'left',transition:'all 0.15s',cursor:activeQuiz.result!==null?'default':'pointer'}}>
+                          style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${border}`,background:bg,color:col,fontSize:13,textAlign:'left',cursor:activeQuiz.result!==null?'default':'pointer'}}>
                           <strong>{letter})</strong> {text}
                         </button>
                       )
                     })}
                   </div>
                   {activeQuiz.result===null?(
-                    <button onClick={submitQuizAnswer} disabled={!activeQuiz.selected} style={{width:'100%',padding:'9px',borderRadius:10,border:'none',background:activeQuiz.selected?'#7B6EF6':t.border,color:'#fff',fontSize:13,fontWeight:600,opacity:activeQuiz.selected?1:0.5}}>
+                    <button onClick={submitQuiz} disabled={!activeQuiz.selected} style={{width:'100%',padding:'9px',borderRadius:10,border:'none',background:activeQuiz.selected?'#7B6EF6':t.border,color:'#fff',fontSize:13,fontWeight:600,opacity:activeQuiz.selected?1:0.5}}>
                       Check Answer
                     </button>
                   ):(
                     <div style={{padding:'10px 14px',borderRadius:10,background:activeQuiz.result?'#4DC9A022':'#F06B6B22',border:`1px solid ${activeQuiz.result?'#4DC9A040':'#F06B6B40'}`,textAlign:'center'}}>
-                      <div style={{fontSize:14,fontWeight:700,color:activeQuiz.result?'#4DC9A0':'#F06B6B'}}>
-                        {activeQuiz.result?'✅ Correct! Well done.':'❌ Wrong. Correct answer: '+activeQuiz.correct}
-                      </div>
-                      {!activeQuiz.result&&<div style={{fontSize:12,color:t.muted,marginTop:4}}>Topic added to weak topics list.</div>}
+                      <div style={{fontSize:14,fontWeight:700,color:activeQuiz.result?'#4DC9A0':'#F06B6B'}}>{activeQuiz.result?'✅ Correct! Well done.':'❌ Wrong. Correct: '+activeQuiz.correct+')'} {activeQuiz.result?'':activeQuiz.options[activeQuiz.correct]}</div>
+                      {!activeQuiz.result&&<div style={{fontSize:12,color:t.muted,marginTop:4}}>Added to weak topics.</div>}
                     </div>
                   )}
                 </div>
               </div>
             )}
-
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,paddingLeft:m.role==='ai'?2:0}}>
               {m.role==='ai'&&<button onClick={()=>onSaveNote(m.content)} style={{fontSize:11,color:'#7B6EF6',background:'none',border:'none',padding:0}}>+ Save as note</button>}
             </div>
           </div>
         ))}
+
         {typing&&<div style={{display:'flex',gap:4,alignItems:'center',padding:'10px 14px',background:t.card,border:`1px solid ${t.border}`,borderRadius:'16px 16px 16px 4px',width:'fit-content',marginBottom:14}}>{[0,1,2].map(i=><span key={i} style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:t.muted,animation:'bounce 1.1s ease infinite',animationDelay:i*0.18+'s'}}/>)}</div>}
         <div ref={bottomRef}/>
       </div>
 
-      {/* Attachment preview */}
       {attachment&&(
         <div style={{padding:'6px 14px',borderTop:`1px solid ${t.border}`,background:t.card2,display:'flex',alignItems:'center',gap:8}}>
-          <span style={{fontSize:12,color:'#7B6EF6'}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,40)}{attachment.preview.length>40?'...':''}</span>
+          <span style={{fontSize:12,color:'#7B6EF6'}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,50)}</span>
           <button onClick={()=>setAttachment(null)} style={{background:'none',border:'none',color:t.red,fontSize:14,padding:0}}>✕</button>
         </div>
       )}
 
-      {/* Attach panel */}
       {showAttach&&(
         <div style={{padding:'10px 14px',borderTop:`1px solid ${t.border}`,background:t.card2}}>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} placeholder="Paste a URL to analyze..." style={{flex:1,padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:13}} onKeyDown={e=>e.key==='Enter'&&addUrl()}/>
-            <button onClick={addUrl} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:12,fontWeight:600}}>Add URL</button>
-            <button onClick={()=>fileRef.current.click()} style={{padding:'8px 14px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>📷 Image</button>
+            <button onClick={addUrl} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:12,fontWeight:600}}>Add</button>
+            <button onClick={()=>fileRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>📷</button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
             <button onClick={()=>setShowAttach(false)} style={{background:'none',border:'none',color:t.muted,fontSize:18,padding:0}}>✕</button>
           </div>
         </div>
       )}
 
-      {/* Input area */}
       <div style={{padding:'10px 14px 16px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
-        {limitHit&&<div style={{fontSize:13,color:t.red,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:8,padding:'8px 12px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>Daily limit reached. <span style={{textDecoration:'underline',fontWeight:600}}>Upgrade to Premium</span> for unlimited messages.</div>}
+        {limitHit&&<div style={{fontSize:13,color:t.red,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:8,padding:'8px 12px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>Daily limit reached. <span style={{textDecoration:'underline',fontWeight:600}}>Upgrade to Premium ⭐</span></div>}
         <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
           {modes.map(m=>(
             <button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'4px 12px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?m.color+'20':'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400}}>{m.label}</button>
           ))}
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+        <div style={{display:'flex',gap:8}}>
           <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'10px 12px',borderRadius:12,border:`1px solid ${t.border}`,background:showAttach?'#7B6EF622':'transparent',color:showAttach?'#7B6EF6':t.muted,fontSize:16,flexShrink:0}}>📎</button>
           <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder={mode==='quiz'?'Enter a topic to get quizzed...':'Ask anything from your syllabus...'} disabled={limitHit} style={{flex:1,padding:'10px 14px',borderRadius:12,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:14}}/>
-          <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'10px 18px',borderRadius:12,border:'none',background:typing||!input.trim()||limitHit?t.border:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.5:1,cursor:typing||!input.trim()||limitHit?'not-allowed':'pointer'}}>Send</button>
+          <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'10px 18px',borderRadius:12,border:'none',background:typing||!input.trim()||limitHit?t.border:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.5:1}}>Send</button>
         </div>
       </div>
     </div>
@@ -606,15 +742,10 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
   const [expanded,setExpanded]=useState(null)
 
   useEffect(()=>{
-    supabase.from('notes').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(({data})=>{
-      if(data)setNotes(data)
-      setLoading(false)
-    })
+    supabase.from('notes').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(({data})=>{if(data)setNotes(data);setLoading(false)})
   },[])
 
-  useEffect(()=>{
-    if(prefill){setForm({title:'AI Response',body:prefill.slice(0,800),tag:'ai'});setShowModal(true);clearPrefill()}
-  },[prefill])
+  useEffect(()=>{if(prefill){setForm({title:'AI Response',body:prefill.slice(0,800),tag:'ai'});setShowModal(true);clearPrefill()}},[prefill])
 
   async function saveNote(){
     if(!form.title.trim()||!form.body.trim())return
@@ -622,13 +753,10 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
     if(!error&&data){setNotes(prev=>[data,...prev]);setShowModal(false);setForm({title:'',body:'',tag:''})}
   }
 
-  async function deleteNote(id){
-    await supabase.from('notes').delete().eq('id',id)
-    setNotes(prev=>prev.filter(n=>n.id!==id))
-  }
+  async function del(id){await supabase.from('notes').delete().eq('id',id);setNotes(prev=>prev.filter(n=>n.id!==id))}
 
   const tagColors={math:'#F0A86B',physics:'#4DC9A0',ai:'#7B6EF6',chemistry:'#F06B6B',biology:'#6BC9F0',general:t.muted}
-  const filtered=filter.trim()?notes.filter(n=>n.title.toLowerCase().includes(filter.toLowerCase())||n.body.toLowerCase().includes(filter.toLowerCase())||n.tag.toLowerCase().includes(filter.toLowerCase())):notes
+  const filtered=filter.trim()?notes.filter(n=>n.title.toLowerCase().includes(filter.toLowerCase())||n.body.toLowerCase().includes(filter.toLowerCase())):notes
   const fld={width:'100%',padding:'9px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:13}
 
   return(
@@ -639,39 +767,36 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
       </div>
       <div style={{flex:1,overflowY:'auto',padding:14}}>
         {loading&&<div style={{textAlign:'center',padding:40,color:t.muted,animation:'pulse 1.5s infinite'}}>Loading...</div>}
-        {!loading&&filtered.length===0&&<div style={{textAlign:'center',padding:'40px 16px',color:t.muted}}><div style={{fontSize:32,marginBottom:8}}>📝</div><div style={{fontSize:14}}>{filter?'No matching notes.':'No notes yet. Add one or save an AI response.'}</div></div>}
+        {!loading&&filtered.length===0&&<div style={{textAlign:'center',padding:'40px 16px',color:t.muted}}><div style={{fontSize:32,marginBottom:8}}>📝</div><div style={{fontSize:14}}>{filter?'No matching notes.':'No notes yet.'}</div></div>}
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {filtered.map(n=>(
-            <div key={n.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,overflow:'hidden',transition:'all 0.2s'}}>
+            <div key={n.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,overflow:'hidden'}}>
               <div style={{padding:'12px 14px',cursor:'pointer'}} onClick={()=>setExpanded(expanded===n.id?null:n.id)}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:6,gap:8}}>
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:4,gap:8}}>
                   <div style={{fontWeight:600,fontSize:14,flex:1,color:t.text}}>{n.title}</div>
                   <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
                     <Tag text={n.tag} color={tagColors[n.tag]||'#7B6EF6'}/>
-                    <button onClick={e=>{e.stopPropagation();deleteNote(n.id)}} style={{fontSize:12,color:t.red,background:'none',border:'none',padding:'2px 6px'}}>✕</button>
+                    <button onClick={e=>{e.stopPropagation();del(n.id)}} style={{fontSize:12,color:t.red,background:'none',border:'none',padding:'2px 6px'}}>✕</button>
+                    <span style={{color:t.muted,fontSize:14}}>{expanded===n.id?'▲':'▼'}</span>
                   </div>
                 </div>
-                {expanded!==n.id&&<div style={{fontSize:13,color:t.muted,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.body.replace(/[#*`_]/g,'').slice(0,100)}...</div>}
+                {expanded!==n.id&&<div style={{fontSize:13,color:t.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.body.replace(/[#*`_]/g,'').slice(0,100)}</div>}
               </div>
-              {expanded===n.id&&(
-                <div style={{padding:'0 14px 14px',borderTop:`1px solid ${t.border}`}}>
-                  <div style={{paddingTop:12}}>
-                    <Markdown content={n.body} dark={dark}/>
-                  </div>
-                </div>
-              )}
+              {expanded===n.id&&<div style={{padding:'0 14px 14px',borderTop:`1px solid ${t.border}`}}><div style={{paddingTop:12}}><Markdown content={n.body} dark={dark}/></div></div>}
             </div>
           ))}
         </div>
       </div>
-
       {showModal&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
           <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:18,padding:24,width:'100%',maxWidth:440}} className="fade-up">
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700,marginBottom:18,color:t.text}}>Save Note 📝</div>
             <div style={{marginBottom:12}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Title</label><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Note title..." style={fld}/></div>
             <div style={{marginBottom:12}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Tag</label><input value={form.tag} onChange={e=>setForm({...form,tag:e.target.value})} placeholder="e.g. math, physics, ai..." style={fld}/></div>
-            <div style={{marginBottom:18}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Content <span style={{color:t.muted,fontSize:11}}>(supports **bold**, *italic*, # headings, - lists)</span></label><textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note here... Markdown supported!" rows={5} style={{...fld,resize:'vertical',fontFamily:'monospace'}}/></div>
+            <div style={{marginBottom:18}}>
+              <label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Content <span style={{fontSize:10,color:t.muted}}>(supports **bold**, *italic*, ## headings, - lists)</span></label>
+              <textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note here..." rows={5} style={{...fld,resize:'vertical',fontFamily:'monospace'}}/>
+            </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setShowModal(false)} style={{padding:'8px 16px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Cancel</button>
               <button onClick={saveNote} style={{padding:'8px 20px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600}}>Save</button>
@@ -686,11 +811,7 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
 // ── Progress Tab ───────────────────────────────────────────────────────────
 function ProgressTab({user,profile,weakTopics,setWeakTopics,dark}){
   const t=T(dark)
-  async function removeWeak(topic){
-    const updated=weakTopics.filter(x=>x!==topic)
-    setWeakTopics(updated)
-    await supabase.from('profiles').update({weak_topics:updated}).eq('user_id',user.id)
-  }
+  async function removeWeak(topic){const updated=weakTopics.filter(x=>x!==topic);setWeakTopics(updated);await supabase.from('profiles').update({weak_topics:updated}).eq('user_id',user.id)}
   return(
     <div style={{flex:1,overflowY:'auto',padding:16}}>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px',marginBottom:14}}>
@@ -699,7 +820,7 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,dark}){
       </div>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px',marginBottom:14}}>
         <div style={{fontSize:12,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>⚠️ Weak Topics</div>
-        {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Quiz wrong answers appear here.</div>:(
+        {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Get quiz answers wrong and they appear here.</div>:(
           <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
             {weakTopics.map(topic=>(
               <div key={topic} style={{display:'flex',alignItems:'center',gap:6,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:20,padding:'4px 10px'}}>
@@ -712,7 +833,7 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,dark}){
       </div>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px'}}>
         <div style={{fontSize:12,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>💡 Study Tips</div>
-        {['Use Quiz mode to test yourself on weak topics','Save important AI explanations as notes','Use Summarize mode before exams','Upload images of diagrams or textbook pages','Add URLs of study materials for AI analysis'].map((tip,i,arr)=>(
+        {['Use Quiz mode to test yourself on weak topics','Save important AI explanations as notes for later','Use Summarize mode the night before exams','Upload photos of diagrams or textbook pages for AI analysis','Add URLs of study materials to get instant summaries'].map((tip,i,arr)=>(
           <div key={i} style={{fontSize:13,color:t.muted,padding:'6px 0',borderBottom:i<arr.length-1?`1px solid ${t.border}`:'none'}}>• {tip}</div>
         ))}
       </div>
@@ -763,21 +884,13 @@ function SearchTab({notes,dark}){
 function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremium}){
   const t=T(dark)
   const userName=user.user_metadata?.name||user.email.split('@')[0]
-  const navItems=[
-    {id:'chat',icon:'💬',label:'Chat'},
-    {id:'notes',icon:'📝',label:'Notes',badge:notes.length},
-    {id:'progress',icon:'📊',label:'Progress'},
-    {id:'search',icon:'🔍',label:'Search'},
-  ]
+  const navItems=[{id:'chat',icon:'💬',label:'Chat'},{id:'notes',icon:'📝',label:'Notes',badge:notes.length},{id:'progress',icon:'📊',label:'Progress'},{id:'search',icon:'🔍',label:'Search'}]
   return(
     <div style={{width:220,height:'100%',background:t.sidebar,borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
-      {/* Logo */}
       <div style={{padding:'20px 16px 16px',borderBottom:`1px solid ${t.border}`}}>
         <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:700,color:t.text}}>🧠 <span style={{color:'#7B6EF6'}}>Memora</span></div>
         <div style={{fontSize:11,color:t.muted,marginTop:2}}>AI Study Companion</div>
       </div>
-
-      {/* Nav */}
       <div style={{flex:1,padding:'10px 8px',overflowY:'auto'}}>
         {navItems.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)} style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'none',background:tab===item.id?'#7B6EF622':'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:14,fontWeight:tab===item.id?600:400,display:'flex',alignItems:'center',gap:10,marginBottom:4,transition:'all 0.15s',textAlign:'left'}}>
@@ -786,28 +899,22 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
             {item.badge>0&&<span style={{marginLeft:'auto',fontSize:10,background:'#7B6EF622',color:'#7B6EF6',borderRadius:10,padding:'1px 6px',fontWeight:700}}>{item.badge}</span>}
           </button>
         ))}
-
-        {/* Upgrade button */}
         {!isPremium&&(
-          <button onClick={onUpgrade} style={{width:'100%',marginTop:10,padding:'10px 12px',borderRadius:10,border:'1px solid #7B6EF644',background:'#7B6EF610',color:'#7B6EF6',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
-            <span style={{fontSize:16}}>⭐</span>
-            Upgrade to Pro
+          <button onClick={onUpgrade} style={{width:'100%',marginTop:10,padding:'10px 12px',borderRadius:10,border:'1px solid #7B6EF644',background:'linear-gradient(135deg,#7B6EF610,#5A50D410)',color:'#7B6EF6',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
+            <span style={{fontSize:16}}>⭐</span>Upgrade to Pro
           </button>
         )}
         {isPremium&&<div style={{margin:'10px 4px',padding:'8px 12px',borderRadius:10,background:'#F0A86B15',border:'1px solid #F0A86B30',fontSize:12,color:'#F0A86B',fontWeight:600}}>⭐ Premium Active</div>}
       </div>
-
-      {/* Theme toggle + User */}
       <div style={{padding:'10px 8px',borderTop:`1px solid ${t.border}`}}>
         <button onClick={()=>setDark(!dark)} style={{width:'100%',padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13,display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-          <span>{dark?'☀️':'🌙'}</span>
-          {dark?'Light Mode':'Dark Mode'}
+          <span>{dark?'☀️':'🌙'}</span>{dark?'Light Mode':'Dark Mode'}
         </button>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 4px'}}>
           <Avatar name={userName} size={30}/>
           <div style={{flex:1,overflow:'hidden'}}>
             <div style={{fontSize:13,fontWeight:600,color:t.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{userName}</div>
-            <button onClick={onLogout} style={{background:'none',border:'none',color:t.muted,fontSize:11,padding:0,cursor:'pointer',textAlign:'left'}}>Logout</button>
+            <button onClick={onLogout} style={{background:'none',border:'none',color:t.muted,fontSize:11,padding:0,cursor:'pointer'}}>Logout</button>
           </div>
         </div>
       </div>
@@ -815,16 +922,14 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
   )
 }
 
-// ── Bottom Tabs (Mobile) ───────────────────────────────────────────────────
 function BottomTabs({tab,setTab,notes,dark}){
   const t=T(dark)
   const items=[{id:'chat',icon:'💬',label:'Chat'},{id:'notes',icon:'📝',label:'Notes',badge:notes.length},{id:'progress',icon:'📊',label:'Progress'},{id:'search',icon:'🔍',label:'Search'}]
   return(
     <div style={{display:'flex',borderTop:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
       {items.map(item=>(
-        <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,padding:'10px 4px 8px',border:'none',borderTop:`2px solid ${tab===item.id?'#7B6EF6':'transparent'}`,background:'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:10,fontWeight:tab===item.id?600:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,transition:'all 0.15s',position:'relative'}}>
-          <span style={{fontSize:18}}>{item.icon}</span>
-          {item.label}
+        <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,padding:'10px 4px 8px',border:'none',borderTop:`2px solid ${tab===item.id?'#7B6EF6':'transparent'}`,background:'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:10,fontWeight:tab===item.id?600:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative'}}>
+          <span style={{fontSize:18}}>{item.icon}</span>{item.label}
           {item.badge>0&&<span style={{position:'absolute',top:6,right:'calc(50% - 16px)',fontSize:9,background:'#7B6EF6',color:'#fff',borderRadius:10,padding:'1px 4px',fontWeight:700}}>{item.badge}</span>}
         </button>
       ))}
@@ -848,9 +953,8 @@ export default function App(){
   const [mobile,setMobile]=useState(window.innerWidth<768)
 
   useEffect(()=>{
-    const handler=()=>setMobile(window.innerWidth<768)
-    window.addEventListener('resize',handler)
-    return()=>window.removeEventListener('resize',handler)
+    const h=()=>setMobile(window.innerWidth<768)
+    window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)
   },[])
 
   useEffect(()=>{
@@ -872,40 +976,30 @@ export default function App(){
     setLoading(false)
   }
 
-  async function logout(){
-    await supabase.auth.signOut()
-    setUser(null);setProfile(null);setNotes([]);setTab('chat')
-  }
-
+  async function logout(){await supabase.auth.signOut();setUser(null);setProfile(null);setNotes([]);setTab('chat')}
   function saveFromAI(content){setNotePrefill(content);setTab('notes')}
   function onProfileDone(p){setProfile(p);setShowProfileSetup(false)}
-
   const t=T(dark)
 
-  if(loading)return <div style={{minHeight:'100vh',background:dark?'#0D0D12':'#F4F3FF',display:'flex',alignItems:'center',justifyContent:'center'}}><style>{getCSS(dark)}</style><div style={{fontSize:40,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>
+  if(loading)return <div style={{minHeight:'100vh',background:'#0A0A10',display:'flex',alignItems:'center',justifyContent:'center'}}><style>{getCSS(dark)}</style><div style={{fontSize:40,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>
   if(!user)return <><style>{getCSS(dark)}</style><AuthScreen onAuth={setUser} dark={dark}/></>
   if(showProfileSetup)return <><style>{getCSS(dark)}</style><ProfileSetup user={user} onDone={onProfileDone} dark={dark}/></>
 
   return(
     <div style={{height:'100vh',display:'flex',flexDirection:'column',background:t.bg,color:t.text,overflow:'hidden'}}>
       <style>{getCSS(dark)}</style>
-
-      {/* Mobile topbar */}
       {mobile&&(
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700}}>🧠 <span style={{color:'#7B6EF6'}}>Memora</span></div>
-          <div style={{display:'flex',gap:8}}>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
             {!isPremium&&<button onClick={()=>setShowPremium(true)} style={{fontSize:11,padding:'4px 10px',borderRadius:20,border:'1px solid #7B6EF644',background:'#7B6EF610',color:'#7B6EF6',fontWeight:600}}>⭐ Pro</button>}
             <button onClick={()=>setDark(!dark)} style={{background:'none',border:'none',fontSize:18,padding:0}}>{dark?'☀️':'🌙'}</button>
             <Avatar name={user.user_metadata?.name||user.email.split('@')[0]} size={28}/>
           </div>
         </div>
       )}
-
-      {/* Main layout */}
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
         {!mobile&&<Sidebar tab={tab} setTab={setTab} user={user} notes={notes} dark={dark} setDark={setDark} onLogout={logout} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}/>}
-
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
           {tab==='chat'&&<ChatTab user={user} notes={notes} profile={profile} onSaveNote={saveFromAI} weakTopics={weakTopics} setWeakTopics={setWeakTopics} isPremium={isPremium} dark={dark} onUpgrade={()=>setShowPremium(true)}/>}
           {tab==='notes'&&<NotesTab user={user} notes={notes} setNotes={setNotes} prefill={notePrefill} clearPrefill={()=>setNotePrefill(null)} dark={dark}/>}
@@ -913,9 +1007,8 @@ export default function App(){
           {tab==='search'&&<SearchTab notes={notes} dark={dark}/>}
         </div>
       </div>
-
       {mobile&&<BottomTabs tab={tab} setTab={setTab} notes={notes} dark={dark}/>}
-      {showPremium&&<PremiumModal onClose={()=>setShowPremium(false)} dark={dark}/>}
+      {showPremium&&<PremiumModal onClose={()=>setShowPremium(false)} dark={dark} user={user}/>}
     </div>
   )
 }
