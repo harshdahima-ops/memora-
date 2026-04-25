@@ -618,7 +618,6 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   }
 
   async function sendMessage(q,skipInput=false){
-    if(!q&&!skipInput)return
     const query=q||input.trim()
     if(!query||typing)return
     const limit=isPremium?9999:FREE_LIMIT
