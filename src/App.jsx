@@ -532,8 +532,12 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   const [urlInput,setUrlInput]=useState('')
   const [showAttach,setShowAttach]=useState(false)
   const [activeQuiz,setActiveQuiz]=useState(null)
+  const [syllabus,setSyllabus]=useState(null) // uploaded syllabus text
+  const [syllabusName,setSyllabusName]=useState(null)
+  const [parsingSyllabus,setParsingSyllabus]=useState(false)
   const bottomRef=useRef(null)
   const fileRef=useRef(null)
+  const syllabusRef=useRef(null)
 
   useEffect(()=>{loadData()},[])
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing])
@@ -570,20 +574,48 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
     setUrlInput('');setShowAttach(false)
   }
 
+  async function handleSyllabusPDF(e){
+    const file=e.target.files[0];if(!file)return
+    if(!file.type.includes('pdf')){alert('Please upload a PDF file.');return}
+    setParsingSyllabus(true)
+    setShowAttach(false)
+    try{
+      const reader=new FileReader()
+      reader.onload=async(ev)=>{
+        try{
+          const base64=ev.target.result.split(',')[1]
+          const res=await fetch('/api/parse-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdfBase64:base64})})
+          const data=await res.json()
+          if(data.syllabus){
+            setSyllabus(data.syllabus)
+            setSyllabusName(file.name)
+          }else{
+            alert('Could not parse PDF. Try again.')
+          }
+        }catch(err){
+          alert('PDF parsing failed: '+err.message)
+        }
+        setParsingSyllabus(false)
+      }
+      reader.readAsDataURL(file)
+    }catch(err){
+      alert('Error reading file.');setParsingSyllabus(false)
+    }
+  }
+
   function buildSystem(){
     let sys='You are Memora, a precise AI study assistant for Indian students.'
     if(profile?.board)sys+=' The student is studying '+profile.board+'.'
     if(profile?.subject)sys+=' Their subject is '+profile.subject+'.'
-    sys+=`
 
-STRICT RULES YOU MUST FOLLOW:
-1. ONLY cover topics that are part of the student's syllabus and board. Do NOT add extra topics, trends, or advanced content that is outside their curriculum.
-2. When making notes, structure them EXACTLY as: Unit/Chapter heading → numbered points → sub-points. Cover ALL units completely, not just Unit 1.
-3. Keep explanations simple, exam-focused, and to the point. No unnecessary theory.
-4. Always use markdown formatting: ## for unit headings, **bold** for key terms, numbered lists for points.
-5. If the student asks for notes of a full subject, cover ALL units/chapters systematically.
-6. Do NOT pad responses with generic advice or motivational text.
-7. Focus on what will help the student score marks in their exam.`
+    if(syllabus){
+      sys+=' The student has uploaded their EXACT college syllabus. You MUST follow this syllabus structure strictly - use exactly these units and topics, nothing more, nothing less:\n\n'+syllabus
+      sys+=' CRITICAL: Only cover units and topics listed in the above syllabus. Do not add any extra units, topics or content not in the syllabus.'
+    } else {
+      sys+=' Follow the standard syllabus for their board/course. Cover all standard units completely.'
+    }
+
+    sys+=' STRICT RULES: 1) Structure notes as Unit heading then numbered points. 2) Cover ALL units not just Unit 1. 3) Keep it exam-focused, no padding. 4) Use markdown: ## headings, **bold** key terms, numbered lists. 5) Do not add topics outside the syllabus.'
 
     if(mode==='summarize')sys+=' Give a structured unit-wise bullet summary. Cover all units. Keep each point exam-relevant and concise.'
     if(mode==='explain')sys+=' Explain in very simple language with a real-life example. Use numbered steps. Stay strictly within syllabus scope.'
@@ -640,7 +672,16 @@ STRICT RULES YOU MUST FOLLOW:
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
       <div style={{padding:'5px 14px',background:t.card2,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <span style={{fontSize:11,color:'#7B6EF6',fontWeight:500}}>{profile?.board?'🎯 '+profile.board+(profile.subject?' · '+profile.subject:''):'🎯 No board set'}</span>
+        {parsingSyllabus&&<span style={{fontSize:11,color:'#F0A86B'}}>📄 Parsing syllabus...</span>}
+        {syllabus&&!parsingSyllabus&&(
+          <div style={{display:'flex',alignItems:'center',gap:4,background:'#4DC9A022',border:'1px solid #4DC9A044',borderRadius:10,padding:'2px 8px'}}>
+            <span style={{fontSize:11,color:'#4DC9A0',fontWeight:500}}>📋 Syllabus loaded</span>
+            <button onClick={()=>{setSyllabus(null);setSyllabusName(null)}} style={{background:'none',border:'none',color:'#4DC9A0',fontSize:11,padding:0,cursor:'pointer'}}>✕</button>
+          </div>
+        )}
+      </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {isPremium?<Tag text="⭐ Premium" color="#F0A86B"/>:(
             <>
@@ -732,6 +773,8 @@ STRICT RULES YOU MUST FOLLOW:
             <button onClick={addUrl} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:12,fontWeight:600}}>Add</button>
             <button onClick={()=>fileRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>📷</button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
+            <button onClick={()=>syllabusRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:'1px solid #4DC9A044',background:'#4DC9A011',color:'#4DC9A0',fontSize:12,fontWeight:500,whiteSpace:'nowrap'}}>📋 Syllabus PDF</button>
+            <input ref={syllabusRef} type="file" accept=".pdf" onChange={handleSyllabusPDF} style={{display:'none'}}/>
             <button onClick={()=>setShowAttach(false)} style={{background:'none',border:'none',color:t.muted,fontSize:18,padding:0}}>✕</button>
           </div>
         </div>
