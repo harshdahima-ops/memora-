@@ -587,13 +587,7 @@ STRICT RULES YOU MUST FOLLOW:
 
     if(mode==='summarize')sys+=' Give a structured unit-wise bullet summary. Cover all units. Keep each point exam-relevant and concise.'
     if(mode==='explain')sys+=' Explain in very simple language with a real-life example. Use numbered steps. Stay strictly within syllabus scope.'
-    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question strictly from the student syllabus. Use EXACTLY this format:
-QUESTION: [question here]
-A) [option A]
-B) [option B]
-C) [option C]
-D) [option D]
-ANSWER: [single letter A, B, C, or D only]'
+    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question strictly from the student syllabus. Use EXACTLY this format: QUESTION: [question] A) [option A] B) [option B] C) [option C] D) [option D] ANSWER: [single letter A B C or D only]. Put each part on a new line.'
     if(notes.length>0)sys+='\n\nStudent saved notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
     if(weakTopics.length>0)sys+='\n\nTopics this student finds difficult: '+weakTopics.join(', ')+'. Give extra attention to these.'
     return sys
