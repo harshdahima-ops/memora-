@@ -62,7 +62,6 @@ const BOARDS = {
   'LLB / LLM - Law':['Constitutional Law','Contract Law','Criminal Law','Family Law','Property Law','Administrative Law','International Law','Corporate Law'],
 }
 
-function timeNow(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
 function today(){return new Date().toISOString().split('T')[0]}
 
 async function callAI(messages,system,image,url){
@@ -71,6 +70,7 @@ async function callAI(messages,system,image,url){
   if(url)body.url=url
   const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
   const data=await res.json()
+  if(data.error==='RATE_LIMIT')throw new Error('RATE_LIMIT')
   if(data.error)throw new Error(data.error)
   if(!data.reply)throw new Error('No response received')
   return data.reply
@@ -78,12 +78,16 @@ async function callAI(messages,system,image,url){
 
 function parseQuiz(text){
   try{
-    const q=text.match(/QUESTION:\s*(.+?)(?=\nA\))/s)?.[1]?.trim()
-    const a=text.match(/A\)\s*(.+?)(?=\nB\))/s)?.[1]?.trim()
-    const b=text.match(/B\)\s*(.+?)(?=\nC\))/s)?.[1]?.trim()
-    const c=text.match(/C\)\s*(.+?)(?=\nD\))/s)?.[1]?.trim()
-    const d=text.match(/D\)\s*(.+?)(?=\nANSWER:)/s)?.[1]?.trim()
-    const ans=text.match(/ANSWER:\s*([A-D])/i)?.[1]?.toUpperCase()
+    const lines=text.split('\n').map(l=>l.trim()).filter(Boolean)
+    let q='',a='',b='',c='',d='',ans=''
+    for(const line of lines){
+      if(line.startsWith('QUESTION:'))q=line.replace('QUESTION:','').trim()
+      else if(line.match(/^A\)/))a=line.replace(/^A\)/,'').trim()
+      else if(line.match(/^B\)/))b=line.replace(/^B\)/,'').trim()
+      else if(line.match(/^C\)/))c=line.replace(/^C\)/,'').trim()
+      else if(line.match(/^D\)/))d=line.replace(/^D\)/,'').trim()
+      else if(line.startsWith('ANSWER:'))ans=line.replace('ANSWER:','').trim().charAt(0).toUpperCase()
+    }
     if(!q||!a||!b||!c||!d||!ans)return null
     return{question:q,options:{A:a,B:b,C:c,D:d},correct:ans}
   }catch{return null}
@@ -102,7 +106,6 @@ button:active{transform:scale(0.97);}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-thumb{background:${dark?'#252535':'#CCCCE0'};border-radius:4px;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
 @keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-10px)}}
@@ -122,7 +125,6 @@ const T=(dark)=>({
   text:dark?'#EEEDF5':'#1A1A2E',
   muted:dark?'#7A79A0':'#6B6B8A',
   accent:'#7B6EF6',
-  accent2:'#5A50D4',
   green:'#4DC9A0',
   red:'#F06B6B',
   sidebar:dark?'#111118':'#EBEBF8',
@@ -137,6 +139,7 @@ function Tag({text,color='#7B6EF6'}){
 
 function fmtInline(text,dark){
   if(!text)return''
+  const t=T(dark)
   const cd={background:dark?'#1C1C26':'#F0EFF8',borderRadius:3,padding:'1px 5px',fontSize:'0.88em',fontFamily:'monospace',color:dark?'#A78BFA':'#6D5FC7'}
   const parts=[];let rem=text,k=0
   while(rem.length){
@@ -158,29 +161,28 @@ function fmtInline(text,dark){
 function Markdown({content,dark=true}){
   if(!content)return null
   const t=T(dark)
-  const c={h1:{fontSize:18,fontWeight:700,margin:'10px 0 4px',color:t.text},h2:{fontSize:16,fontWeight:600,margin:'8px 0 4px',color:t.text},h3:{fontSize:14,fontWeight:600,margin:'6px 0 3px',color:t.text},p:{margin:'3px 0',lineHeight:1.7,fontSize:14},li:{paddingLeft:16,marginBottom:3,lineHeight:1.65,fontSize:14},pre:{background:dark?'#0D0D12':'#F0EFF8',borderRadius:8,padding:'10px 12px',fontSize:12,overflow:'auto',margin:'8px 0',fontFamily:'monospace'},hr:{border:'none',borderTop:'1px solid '+(dark?'#252535':'#E0DFF5'),margin:'10px 0'}}
   const lines=content.split('\n'),els=[];let i=0,inCode=false,codeLines=[]
   while(i<lines.length){
     const l=lines[i]
-    if(l.startsWith('```')){inCode?( els.push(<pre key={i} style={c.pre}><code>{codeLines.join('\n')}</code></pre>),inCode=false,codeLines=[]):(inCode=true,codeLines=[]);i++;continue}
+    if(l.startsWith('```')){inCode?(els.push(<pre key={i} style={{background:dark?'#0D0D12':'#F0EFF8',borderRadius:8,padding:'10px 12px',fontSize:12,overflow:'auto',margin:'8px 0',fontFamily:'monospace'}}><code>{codeLines.join('\n')}</code></pre>),inCode=false,codeLines=[]):(inCode=true,codeLines=[]);i++;continue}
     if(inCode){codeLines.push(l);i++;continue}
-    if(l.startsWith('### '))els.push(<h3 key={i} style={c.h3}>{fmtInline(l.slice(4),dark)}</h3>)
-    else if(l.startsWith('## '))els.push(<h2 key={i} style={c.h2}>{fmtInline(l.slice(3),dark)}</h2>)
-    else if(l.startsWith('# '))els.push(<h1 key={i} style={c.h1}>{fmtInline(l.slice(2),dark)}</h1>)
-    else if(l.startsWith('---'))els.push(<hr key={i} style={c.hr}/>)
-    else if(l.startsWith('- ')||l.startsWith('* '))els.push(<div key={i} style={{...c.li,color:t.muted}}>• {fmtInline(l.slice(2),dark)}</div>)
-    else if(/^\d+\. /.test(l)){const[,n,tx]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={{...c.li,color:t.muted}}>{n}. {fmtInline(tx,dark)}</div>)}
+    if(l.startsWith('### '))els.push(<h3 key={i} style={{fontSize:14,fontWeight:600,margin:'6px 0 3px',color:t.text}}>{fmtInline(l.slice(4),dark)}</h3>)
+    else if(l.startsWith('## '))els.push(<h2 key={i} style={{fontSize:16,fontWeight:600,margin:'8px 0 4px',color:t.text}}>{fmtInline(l.slice(3),dark)}</h2>)
+    else if(l.startsWith('# '))els.push(<h1 key={i} style={{fontSize:18,fontWeight:700,margin:'10px 0 4px',color:t.text}}>{fmtInline(l.slice(2),dark)}</h1>)
+    else if(l.startsWith('---'))els.push(<hr key={i} style={{border:'none',borderTop:'1px solid '+(dark?'#252535':'#E0DFF5'),margin:'10px 0'}}/>)
+    else if(l.startsWith('- ')||l.startsWith('* '))els.push(<div key={i} style={{paddingLeft:16,marginBottom:3,lineHeight:1.65,fontSize:14,color:t.muted}}>• {fmtInline(l.slice(2),dark)}</div>)
+    else if(/^\d+\. /.test(l)){const[,n,tx]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={{paddingLeft:16,marginBottom:3,lineHeight:1.65,fontSize:14,color:t.muted}}>{n}. {fmtInline(tx,dark)}</div>)}
     else if(l.trim()==='')els.push(<div key={i} style={{height:6}}/>)
-    else els.push(<p key={i} style={{...c.p,color:t.muted}}>{fmtInline(l,dark)}</p>)
+    else els.push(<p key={i} style={{margin:'3px 0',lineHeight:1.7,fontSize:14,color:t.muted}}>{fmtInline(l,dark)}</p>)
     i++
   }
   return <div style={{lineHeight:1.6}}>{els}</div>
 }
 
-// ── LANDING / AUTH SCREEN ──────────────────────────────────────────────────
+// ── LANDING / AUTH ──────────────────────────────────────────────────────────
 function AuthScreen({onAuth,dark}){
   const t=T(dark)
-  const [view,setView]=useState('landing') // landing | login | signup
+  const [view,setView]=useState('landing')
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
   const [pass,setPass]=useState('')
@@ -213,19 +215,15 @@ function AuthScreen({onAuth,dark}){
     setLoading(false)
   }
 
-  const inp={width:'100%',padding:'12px 16px',borderRadius:12,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14}
-  const features=[{icon:'🎯',text:'Syllabus-aware AI for CBSE, JEE, NEET, CA & 40+ courses'},{icon:'🧩',text:'Quiz mode that tracks your weak topics automatically'},{icon:'📝',text:'Smart notes with markdown formatting'},{icon:'📎',text:'Analyze images, PDFs and URLs with AI'}]
+  const inp={width:'100%',padding:'12px 16px',borderRadius:12,border:'1px solid #252535',background:'#1C1C26',color:'#EEEDF5',fontSize:14}
+  const features=[{icon:'🎯',text:'Personalized for CBSE, JEE, NEET, CA & 40+ courses'},{icon:'🧩',text:'Interactive quiz that tracks your weak topics'},{icon:'📝',text:'Smart notes with proper formatting'},{icon:'📋',text:'Upload your college syllabus PDF for exact answers'}]
 
   if(view==='landing'){
     return(
-      <div style={{minHeight:'100vh',background:'#0A0A10',color:'#EEEDF5',overflow:'auto'}}>
-        {/* BG glow */}
+      <div style={{minHeight:'100vh',background:'#0A0A10',color:'#EEEDF5',overflowY:'auto'}}>
         <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none'}}>
           <div style={{position:'absolute',top:'-20%',left:'50%',transform:'translateX(-50%)',width:600,height:600,background:'radial-gradient(circle,rgba(123,110,246,0.15) 0%,transparent 70%)',animation:'glow 4s ease infinite'}}/>
-          <div style={{position:'absolute',bottom:'-10%',right:'-10%',width:400,height:400,background:'radial-gradient(circle,rgba(77,201,160,0.08) 0%,transparent 70%)'}}/>
         </div>
-
-        {/* Nav */}
         <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 32px',position:'relative',zIndex:10}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>🧠 <span style={{color:'#7B6EF6'}}>Memora</span></div>
           <div style={{display:'flex',gap:10}}>
@@ -233,18 +231,10 @@ function AuthScreen({onAuth,dark}){
             <button onClick={()=>setView('signup')} style={{padding:'8px 20px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600}}>Sign Up Free</button>
           </div>
         </nav>
-
-        {/* Hero */}
         <div style={{textAlign:'center',padding:'60px 20px 40px',position:'relative',zIndex:10,maxWidth:700,margin:'0 auto'}}>
-          <div className="fade-up" style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(123,110,246,0.12)',border:'1px solid rgba(123,110,246,0.3)',borderRadius:20,padding:'6px 16px',fontSize:12,color:'#A78BFA',fontWeight:500,marginBottom:24}}>
-            ✨ Your Personal AI Study Companion
-          </div>
-          <h1 className="fade-up-d1" style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(36px,7vw,64px)',fontWeight:800,lineHeight:1.1,marginBottom:20,letterSpacing:-1}}>
-            Study Smarter.<br/><span style={{color:'#FFFFFF'}}>Score Higher.</span>
-          </h1>
-          <p className="fade-up-d2" style={{fontSize:16,color:'#7A79A0',lineHeight:1.7,marginBottom:36,maxWidth:500,margin:'0 auto 36px'}}>
-            AI-powered study assistant built for Indian students. Personalized for your board, exam, or college course.
-          </p>
+          <div className="fade-up" style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(123,110,246,0.12)',border:'1px solid rgba(123,110,246,0.3)',borderRadius:20,padding:'6px 16px',fontSize:12,color:'#A78BFA',fontWeight:500,marginBottom:24}}>✨ Your Personal AI Study Companion</div>
+          <h1 className="fade-up-d1" style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(36px,7vw,64px)',fontWeight:800,lineHeight:1.1,marginBottom:20,letterSpacing:-1}}>Study Smarter.<br/><span style={{color:'#FFFFFF'}}>Score Higher.</span></h1>
+          <p className="fade-up-d2" style={{fontSize:16,color:'#7A79A0',lineHeight:1.7,marginBottom:36,maxWidth:500,margin:'0 auto 36px'}}>AI-powered study assistant built for Indian students. Personalized for your board, exam, or college course.</p>
           <div className="fade-up-d3" style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap',marginBottom:16}}>
             <button onClick={googleLogin} style={{display:'flex',alignItems:'center',gap:10,padding:'13px 24px',borderRadius:12,border:'1px solid #252535',background:'#15151C',color:'#EEEDF5',fontSize:14,fontWeight:500}}>
               <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
@@ -254,8 +244,6 @@ function AuthScreen({onAuth,dark}){
           </div>
           <div className="fade-up-d4" style={{fontSize:12,color:'#3A3A58'}}>No credit card required • 20 free AI messages per day</div>
         </div>
-
-        {/* Features */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,maxWidth:800,margin:'20px auto 60px',padding:'0 24px',position:'relative',zIndex:10}}>
           {features.map((f,i)=>(
             <div key={i} className="fade-up" style={{background:'#15151C',border:'1px solid #252535',borderRadius:14,padding:'16px 18px',animationDelay:i*0.1+'s'}}>
@@ -264,18 +252,14 @@ function AuthScreen({onAuth,dark}){
             </div>
           ))}
         </div>
-
-        {/* Stats */}
-        <div style={{display:'flex',justifyContent:'center',gap:40,flexWrap:'wrap',padding:'20px 24px 60px',position:'relative',zIndex:10}}>
-          {[['40+','Boards & Courses'],['Free','To Start'],['AI','Powered Quizzes'],['24/7','Always Available']].map(([val,label],i)=>(
+        <div style={{display:'flex',justifyContent:'center',gap:40,flexWrap:'wrap',padding:'0 24px 60px',position:'relative',zIndex:10}}>
+          {[['40+','Boards & Courses'],['₹99','Premium/Month'],['Free','To Start'],['24/7','Available']].map(([val,label],i)=>(
             <div key={i} style={{textAlign:'center'}}>
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:'#7B6EF6'}}>{val}</div>
               <div style={{fontSize:12,color:'#3A3A58',marginTop:2}}>{label}</div>
             </div>
           ))}
         </div>
-
-        {/* Already have account */}
         <div style={{textAlign:'center',padding:'0 0 40px',color:'#3A3A58',fontSize:13,position:'relative',zIndex:10}}>
           Already have an account?{' '}
           <button onClick={()=>setView('login')} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Login →</button>
@@ -285,8 +269,7 @@ function AuthScreen({onAuth,dark}){
   }
 
   return(
-    <div style={{minHeight:'100vh',display:'flex',background:'#0A0A10',overflow:'auto'}}>
-      {/* Left panel */}
+    <div style={{minHeight:'100vh',display:'flex',background:'#0A0A10',overflowY:'auto'}}>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:40,position:'relative'}}>
         <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
           <div style={{position:'absolute',top:'30%',left:'30%',width:300,height:300,background:'radial-gradient(circle,rgba(123,110,246,0.12) 0%,transparent 70%)'}}/>
@@ -294,61 +277,36 @@ function AuthScreen({onAuth,dark}){
         <div style={{width:'100%',maxWidth:380,position:'relative',zIndex:1}} className="fade-up">
           <button onClick={()=>setView('landing')} style={{background:'none',border:'none',color:'#7A79A0',fontSize:13,cursor:'pointer',marginBottom:24,display:'flex',alignItems:'center',gap:6}}>← Back</button>
           <div style={{marginBottom:28}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#EEEDF5',marginBottom:6}}>
-              {view==='login'?'Welcome back 👋':'Create your account'}
-            </div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#EEEDF5',marginBottom:6}}>{view==='login'?'Welcome back 👋':'Create your account'}</div>
             <div style={{fontSize:13,color:'#7A79A0'}}>{view==='login'?'Login to continue your learning journey':'Join thousands of students studying smarter'}</div>
           </div>
-
-          {/* Google */}
           <button onClick={googleLogin} disabled={loading} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'12px',borderRadius:12,border:'1px solid #252535',background:'#15151C',color:'#EEEDF5',fontSize:14,fontWeight:500,marginBottom:16}}>
             <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
             Continue with Google
           </button>
-
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-            <div style={{flex:1,height:1,background:'#252535'}}/>
-            <span style={{fontSize:12,color:'#3A3A58'}}>or</span>
-            <div style={{flex:1,height:1,background:'#252535'}}/>
+            <div style={{flex:1,height:1,background:'#252535'}}/><span style={{fontSize:12,color:'#3A3A58'}}>or</span><div style={{flex:1,height:1,background:'#252535'}}/>
           </div>
-
-          {view==='signup'&&(
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Your name</label>
-              <input style={inp} placeholder="e.g. Harsh" value={name} onChange={e=>setName(e.target.value)}/>
-            </div>
-          )}
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Email address</label>
-            <input style={inp} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/>
-          </div>
-          <div style={{marginBottom:20}}>
-            <label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Password</label>
-            <input style={inp} type="password" placeholder="min 6 characters" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
-          </div>
-
+          {view==='signup'&&<div style={{marginBottom:12}}><label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Your name</label><input style={inp} placeholder="e.g. Harsh" value={name} onChange={e=>setName(e.target.value)}/></div>}
+          <div style={{marginBottom:12}}><label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Email address</label><input style={inp} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+          <div style={{marginBottom:20}}><label style={{fontSize:12,color:'#7A79A0',display:'block',marginBottom:5}}>Password</label><input style={inp} type="password" placeholder="min 6 characters" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/></div>
           {err&&<div style={{fontSize:13,color:'#F06B6B',background:'#F06B6B15',border:'1px solid #F06B6B30',borderRadius:10,padding:'10px 14px',marginBottom:14,textAlign:'center'}}>{err}</div>}
-
           <button onClick={submit} disabled={loading} style={{width:'100%',padding:13,borderRadius:12,border:'none',background:loading?'#252535':'linear-gradient(135deg,#7B6EF6,#5A50D4)',color:'#fff',fontSize:14,fontWeight:700,cursor:loading?'not-allowed':'pointer'}}>
             {loading?'Please wait...':(view==='login'?'Login to Memora':'Create Free Account')}
           </button>
-
           <div style={{textAlign:'center',marginTop:16,fontSize:13,color:'#7A79A0'}}>
             {view==='login'?<>No account? <button onClick={()=>{setView('signup');setErr('')}} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Sign up free</button></>:<>Already have an account? <button onClick={()=>{setView('login');setErr('')}} style={{background:'none',border:'none',color:'#7B6EF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Login</button></>}
           </div>
         </div>
       </div>
-
-      {/* Right panel - only desktop */}
       <div style={{flex:1,background:'linear-gradient(135deg,#111118,#0D0D1A)',display:'flex',alignItems:'center',justifyContent:'center',padding:40,borderLeft:'1px solid #252535'}} className="hide-mobile">
         <div style={{textAlign:'center',maxWidth:320}}>
           <div style={{fontSize:64,marginBottom:20,animation:'float 3s ease infinite'}}>🧠</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:'#EEEDF5',marginBottom:10}}>Study Smarter with AI</div>
-          <div style={{fontSize:14,color:'#7A79A0',lineHeight:1.7,marginBottom:24}}>Personalized for your board, exam, or college course. Quiz mode, notes, weak topic tracking and more.</div>
-          {[['🎯','40+ boards & courses supported'],['🧩','AI quiz with answer checking'],['📊','Progress & weak topic tracker'],['⭐','Premium: unlimited messages']].map(([ic,tx],i)=>(
+          <div style={{fontSize:14,color:'#7A79A0',lineHeight:1.7,marginBottom:24}}>Personalized for your board, exam, or college course.</div>
+          {[['🎯','40+ boards & courses'],['🧩','Interactive quiz mode'],['📊','Weak topic tracker'],['📋','Upload syllabus PDF']].map(([ic,tx],i)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:10,background:'rgba(123,110,246,0.08)',border:'1px solid rgba(123,110,246,0.15)',borderRadius:10,padding:'10px 14px',marginBottom:8,textAlign:'left'}}>
-              <span style={{fontSize:18}}>{ic}</span>
-              <span style={{fontSize:13,color:'#A0A0C0'}}>{tx}</span>
+              <span style={{fontSize:18}}>{ic}</span><span style={{fontSize:13,color:'#A0A0C0'}}>{tx}</span>
             </div>
           ))}
         </div>
@@ -367,8 +325,8 @@ function ProfileSetup({user,onDone,dark}){
   async function save(){
     if(!board)return
     setLoading(true)
-    await supabase.from('profiles').upsert({user_id:user.id,board,subject:subject||null,weak_topics:[]})
-    onDone({board,subject})
+    await supabase.from('profiles').upsert({user_id:user.id,board,subject:subject||null,weak_topics:[],premium:false})
+    onDone({board,subject,premium:false})
     setLoading(false)
   }
   const sel={width:'100%',padding:'10px 14px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card2,color:board?t.text:t.muted,fontSize:14}
@@ -385,27 +343,13 @@ function ProfileSetup({user,onDone,dark}){
             <label style={{fontSize:12,color:t.muted,display:'block',marginBottom:6}}>Your board / exam / course *</label>
             <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={sel}>
               <option value="">Select your board, exam or course...</option>
-              {Object.entries(BOARD_GROUPS).map(([group,opts])=>(
-                <optgroup key={group} label={group}>{opts.map(b=><option key={b} value={b}>{b}</option>)}</optgroup>
-              ))}
+              {Object.entries(BOARD_GROUPS).map(([group,opts])=>(<optgroup key={group} label={group}>{opts.map(b=><option key={b} value={b}>{b}</option>)}</optgroup>))}
             </select>
           </div>
-          {subjects.length>0&&(
-            <div style={{marginBottom:20}}>
-              <label style={{fontSize:12,color:t.muted,display:'block',marginBottom:6}}>Main subject (optional)</label>
-              <select value={subject} onChange={e=>setSubject(e.target.value)} style={{...sel,color:subject?t.text:t.muted}}>
-                <option value="">All subjects</option>
-                {subjects.map(s=><option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          )}
-          <button onClick={save} disabled={!board||loading} style={{width:'100%',padding:11,borderRadius:10,border:'none',background:!board||loading?t.border:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600,opacity:!board?0.5:1}}>
-            {loading?'Saving...':'Start Learning →'}
-          </button>
+          {subjects.length>0&&(<div style={{marginBottom:20}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:6}}>Main subject (optional)</label><select value={subject} onChange={e=>setSubject(e.target.value)} style={{...sel,color:subject?t.text:t.muted}}><option value="">All subjects</option>{subjects.map(s=><option key={s} value={s}>{s}</option>)}</select></div>)}
+          <button onClick={save} disabled={!board||loading} style={{width:'100%',padding:11,borderRadius:10,border:'none',background:!board||loading?t.border:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600,opacity:!board?0.5:1}}>{loading?'Saving...':'Start Learning →'}</button>
         </div>
-        <div style={{textAlign:'center',marginTop:14}}>
-          <button onClick={()=>onDone(null)} style={{background:'none',border:'none',color:t.muted,fontSize:12,cursor:'pointer'}}>Skip for now</button>
-        </div>
+        <div style={{textAlign:'center',marginTop:14}}><button onClick={()=>onDone(null)} style={{background:'none',border:'none',color:t.muted,fontSize:12,cursor:'pointer'}}>Skip for now</button></div>
       </div>
     </div>
   )
@@ -415,12 +359,11 @@ function ProfileSetup({user,onDone,dark}){
 function PremiumModal({onClose,dark,user}){
   const t=T(dark)
   const [loading,setLoading]=useState(false)
-  const [step,setStep]=useState('plan') // plan | pay | success
+  const [step,setStep]=useState('plan')
 
   async function startPayment(){
     setLoading(true)
     try{
-      // Load Razorpay script
       await new Promise((resolve,reject)=>{
         if(window.Razorpay){resolve();return}
         const s=document.createElement('script')
@@ -428,57 +371,41 @@ function PremiumModal({onClose,dark,user}){
         s.onload=resolve;s.onerror=reject
         document.body.appendChild(s)
       })
-
-      // Create order from backend
       const orderRes=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create_order'})})
       const orderData=await orderRes.json()
       if(orderData.error){alert('Payment setup failed: '+orderData.error);setLoading(false);return}
-
       const options={
-        key:orderData.keyId,
-        amount:orderData.amount,
-        currency:orderData.currency,
-        order_id:orderData.orderId,
-        name:'Memora Premium',
-        description:'Unlimited AI messages per month',
+        key:orderData.keyId,amount:orderData.amount,currency:orderData.currency,order_id:orderData.orderId,
+        name:'Memora Premium',description:'Unlimited AI messages per month',
         prefill:{email:user?.email||'',name:user?.user_metadata?.name||''},
         theme:{color:'#7B6EF6'},
         handler:async function(response){
-          // Verify payment on backend
-          const verifyRes=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify_payment',razorpay_order_id:response.razorpay_order_id,razorpay_payment_id:response.razorpay_payment_id,razorpay_signature:response.razorpay_signature})})
+          const verifyRes=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify_payment',...response})})
           const verifyData=await verifyRes.json()
           if(verifyData.verified){
             await supabase.from('profiles').update({premium:true,premium_since:new Date().toISOString()}).eq('user_id',user.id)
             setStep('success')
-          }else{
-            alert('Payment verification failed. Contact support.')
-          }
+          }else alert('Payment verification failed. Contact support.')
         },
-        modal:{ondismiss:function(){setLoading(false)}}
+        modal:{ondismiss:()=>setLoading(false)}
       }
-      const rzp=new window.Razorpay(options)
-      rzp.open()
-    }catch(e){
-      alert('Payment gateway error: '+(e.message||'Please try again.'))
-    }
+      new window.Razorpay(options).open()
+    }catch(e){alert('Payment error: '+(e.message||'Try again.'))}
     setLoading(false)
   }
 
-  if(step==='success'){
-    return(
-      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
-        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:32,width:'100%',maxWidth:360,textAlign:'center'}} className="fade-up">
-          <div style={{fontSize:52,marginBottom:12}}>🎉</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:t.text,marginBottom:8}}>You're Premium!</div>
-          <div style={{fontSize:14,color:t.muted,marginBottom:24}}>Enjoy unlimited AI messages, quizzes, and all premium features.</div>
-          <button onClick={()=>{onClose();window.location.reload()}} style={{width:'100%',padding:12,borderRadius:12,border:'none',background:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:700}}>Start Studying →</button>
-        </div>
+  if(step==='success')return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:32,width:'100%',maxWidth:360,textAlign:'center'}} className="fade-up">
+        <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:t.text,marginBottom:8}}>You're Premium!</div>
+        <div style={{fontSize:14,color:t.muted,marginBottom:24}}>Enjoy unlimited AI messages and all premium features.</div>
+        <button onClick={()=>{onClose();window.location.reload()}} style={{width:'100%',padding:12,borderRadius:12,border:'none',background:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:700}}>Start Studying →</button>
       </div>
-    )
-  }
+    </div>
+  )
 
-  const features=[{icon:'∞',label:'Unlimited AI messages per day'},{icon:'🧩',label:'Unlimited quiz questions'},{icon:'📁',label:'Upload images & analyze URLs'},{icon:'📊',label:'Advanced progress analytics'},{icon:'🎯',label:'Personalized study plans'},{icon:'⚡',label:'Priority AI response speed'}]
-
+  const features=[{icon:'∞',label:'Unlimited AI messages per day'},{icon:'🧩',label:'Unlimited quiz questions'},{icon:'📁',label:'Upload images & analyze URLs'},{icon:'📋',label:'Upload syllabus PDF'},{icon:'📊',label:'Advanced progress analytics'},{icon:'⚡',label:'Priority AI response speed'}]
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20,overflowY:'auto'}}>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:420}} className="fade-up">
@@ -488,33 +415,94 @@ function PremiumModal({onClose,dark,user}){
           <div style={{fontSize:13,color:t.muted,marginTop:4}}>Unlock your full learning potential</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:22}}>
-          {features.map((f,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:t.card2,borderRadius:10}}>
-              <span style={{fontSize:18,width:28,textAlign:'center'}}>{f.icon}</span>
-              <span style={{fontSize:13,color:t.text}}>{f.label}</span>
-            </div>
-          ))}
+          {features.map((f,i)=>(<div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:t.card2,borderRadius:10}}><span style={{fontSize:18,width:28,textAlign:'center'}}>{f.icon}</span><span style={{fontSize:13,color:t.text}}>{f.label}</span></div>))}
         </div>
-
-        {/* Price */}
         <div style={{background:'linear-gradient(135deg,#7B6EF6,#5A50D4)',borderRadius:14,padding:'16px 20px',textAlign:'center',marginBottom:14}}>
           <div style={{fontSize:28,fontWeight:800,color:'#fff',fontFamily:"'Syne',sans-serif"}}>₹99 <span style={{fontSize:15,fontWeight:400,opacity:0.8}}>/ month</span></div>
           <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:3}}>Cancel anytime • Instant access</div>
         </div>
-
-        {/* Payment methods */}
-        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:16}}>
-          {['UPI','Credit Card','Debit Card','Net Banking','Wallets'].map(m=>(
-            <span key={m} style={{fontSize:10,padding:'3px 8px',borderRadius:8,background:t.card2,border:`1px solid ${t.border}`,color:t.muted}}>{m}</span>
-          ))}
+        <div style={{display:'flex',gap:6,justifyContent:'center',flexWrap:'wrap',marginBottom:16}}>
+          {['UPI','Credit Card','Debit Card','Net Banking','Wallets'].map(m=>(<span key={m} style={{fontSize:10,padding:'3px 8px',borderRadius:8,background:t.card2,border:`1px solid ${t.border}`,color:t.muted}}>{m}</span>))}
         </div>
-
         <button onClick={startPayment} disabled={loading} style={{width:'100%',padding:13,borderRadius:12,border:'none',background:loading?t.border:'linear-gradient(135deg,#7B6EF6,#5A50D4)',color:'#fff',fontSize:15,fontWeight:700,marginBottom:10,cursor:loading?'not-allowed':'pointer'}}>
           {loading?'Loading payment...':'Pay ₹99 & Upgrade Now'}
         </button>
         <div style={{fontSize:11,color:t.muted,textAlign:'center',marginBottom:12}}>🔒 Secure payment powered by Razorpay</div>
         <button onClick={onClose} style={{width:'100%',padding:10,borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Maybe later</button>
       </div>
+    </div>
+  )
+}
+
+// ── QUIZ COMPONENT ─────────────────────────────────────────────────────────
+function QuizCard({quiz,onAnswer,onNext,onEnd,score,total,dark}){
+  const t=T(dark)
+  const [selected,setSelected]=useState(null)
+  const [revealed,setRevealed]=useState(false)
+
+  function submit(){
+    if(!selected)return
+    setRevealed(true)
+    const correct=selected===quiz.correct
+    onAnswer(correct,selected)
+  }
+
+  function next(){
+    setSelected(null)
+    setRevealed(false)
+    onNext()
+  }
+
+  return(
+    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:16,padding:'18px 16px',marginTop:10,maxWidth:'85%'}}>
+      {/* Score bar */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <span style={{fontSize:12,color:t.muted,fontWeight:500}}>Question {total+1}</span>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:12,fontWeight:600,color:'#4DC9A0'}}>✅ {score} correct</span>
+          <button onClick={onEnd} style={{fontSize:11,color:t.red,background:'none',border:`1px solid ${t.red}44`,borderRadius:8,padding:'2px 8px',cursor:'pointer'}}>End</button>
+        </div>
+      </div>
+
+      {/* Question */}
+      <div style={{fontSize:15,fontWeight:600,color:t.text,marginBottom:16,lineHeight:1.5}}>{quiz.question}</div>
+
+      {/* Options */}
+      <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
+        {Object.entries(quiz.options).map(([letter,text])=>{
+          let bg=t.card2,border=t.border,col=t.text,icon=''
+          if(revealed){
+            if(letter===quiz.correct){bg='#4DC9A022';border='#4DC9A0';col='#4DC9A0';icon=' ✅'}
+            else if(selected===letter&&letter!==quiz.correct){bg='#F06B6B22';border='#F06B6B';col='#F06B6B';icon=' ❌'}
+          } else if(selected===letter){bg='#7B6EF622';border='#7B6EF6';col='#7B6EF6'}
+          return(
+            <button key={letter} onClick={()=>!revealed&&setSelected(letter)}
+              style={{padding:'10px 14px',borderRadius:10,border:`1px solid ${border}`,background:bg,color:col,fontSize:14,textAlign:'left',cursor:revealed?'default':'pointer',transition:'all 0.15s',fontWeight:selected===letter||letter===quiz.correct?500:400}}>
+              <strong>{letter})</strong> {text}{icon}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Action buttons */}
+      {!revealed?(
+        <button onClick={submit} disabled={!selected} style={{width:'100%',padding:'10px',borderRadius:10,border:'none',background:selected?'#7B6EF6':t.border,color:'#fff',fontSize:14,fontWeight:600,opacity:selected?1:0.5,cursor:selected?'pointer':'not-allowed'}}>
+          Submit Answer
+        </button>
+      ):(
+        <div>
+          <div style={{padding:'10px 14px',borderRadius:10,background:selected===quiz.correct?'#4DC9A022':'#F06B6B22',border:`1px solid ${selected===quiz.correct?'#4DC9A040':'#F06B6B40'}`,marginBottom:10,textAlign:'center'}}>
+            <div style={{fontSize:14,fontWeight:700,color:selected===quiz.correct?'#4DC9A0':'#F06B6B'}}>
+              {selected===quiz.correct?'🎉 Correct! Well done.':'❌ Wrong answer!'}
+            </div>
+            {selected!==quiz.correct&&<div style={{fontSize:13,color:t.muted,marginTop:4}}>Correct: <strong style={{color:'#4DC9A0'}}>{quiz.correct}) {quiz.options[quiz.correct]}</strong></div>}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={next} style={{flex:1,padding:'10px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:14,fontWeight:600}}>Next Question →</button>
+            <button onClick={onEnd} style={{padding:'10px 14px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>End Quiz</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -527,20 +515,26 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   const [mode,setMode]=useState('chat')
   const [typing,setTyping]=useState(false)
   const [usage,setUsage]=useState(0)
-  const [loading,setLoading]=useState(true)
+  const [loadingMsgs,setLoadingMsgs]=useState(true)
   const [attachment,setAttachment]=useState(null)
   const [urlInput,setUrlInput]=useState('')
   const [showAttach,setShowAttach]=useState(false)
-  const [activeQuiz,setActiveQuiz]=useState(null)
-  const [syllabus,setSyllabus]=useState(null) // uploaded syllabus text
+  const [syllabus,setSyllabus]=useState(null)
   const [syllabusName,setSyllabusName]=useState(null)
   const [parsingSyllabus,setParsingSyllabus]=useState(false)
+  // Quiz state
+  const [quizTopic,setQuizTopic]=useState(null)
+  const [quizScore,setQuizScore]=useState(0)
+  const [quizTotal,setQuizTotal]=useState(0)
+  const [currentQuiz,setCurrentQuiz]=useState(null)
+  const [quizMsgId,setQuizMsgId]=useState(null)
+  const [loadingQuiz,setLoadingQuiz]=useState(false)
   const bottomRef=useRef(null)
   const fileRef=useRef(null)
   const syllabusRef=useRef(null)
 
   useEffect(()=>{loadData()},[])
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing])
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing,currentQuiz])
 
   async function loadData(){
     const[mr,ur]=await Promise.all([
@@ -549,7 +543,7 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
     ])
     if(mr.data)setMessages(mr.data)
     if(ur.data)setUsage(ur.data.count)
-    setLoading(false)
+    setLoadingMsgs(false)
   }
 
   async function trackUsage(){
@@ -564,8 +558,39 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       const reader=new FileReader()
       reader.onload=ev=>setAttachment({type:'image',data:ev.target.result,preview:file.name})
       reader.readAsDataURL(file)
-    }else alert('Only image files supported for now.')
+    }else alert('Only image files supported.')
     setShowAttach(false)
+  }
+
+  async function handleSyllabusPDF(e){
+    const file=e.target.files[0];if(!file)return
+    if(!file.name.endsWith('.pdf')){alert('Please upload a PDF file.');return}
+    setParsingSyllabus(true);setShowAttach(false)
+    try{
+      // Extract text from PDF using FileReader + send to API
+      const reader=new FileReader()
+      reader.onload=async(ev)=>{
+        try{
+          // Convert ArrayBuffer to text by extracting readable strings from PDF binary
+          const arr=new Uint8Array(ev.target.result)
+          let text=''
+          for(let i=0;i<arr.length;i++){
+            const c=arr[i]
+            if(c>=32&&c<=126)text+=String.fromCharCode(c)
+            else if(c===10||c===13)text+=' '
+          }
+          // Clean up: remove excessive spaces/junk, keep readable content
+          text=text.replace(/[^\x20-\x7E\n]/g,' ').replace(/\s+/g,' ').trim()
+          if(text.length<100){alert('Could not extract text from PDF. Make sure it is not a scanned image PDF.');setParsingSyllabus(false);return}
+          const res=await fetch('/api/parse-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})
+          const data=await res.json()
+          if(data.syllabus){setSyllabus(data.syllabus);setSyllabusName(file.name)}
+          else alert('Could not parse syllabus. Try a text-based PDF.')
+        }catch(err){alert('PDF parsing failed: '+err.message)}
+        setParsingSyllabus(false)
+      }
+      reader.readAsArrayBuffer(file)
+    }catch(err){alert('Error reading file.');setParsingSyllabus(false)}
   }
 
   function addUrl(){
@@ -574,64 +599,33 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
     setUrlInput('');setShowAttach(false)
   }
 
-  async function handleSyllabusPDF(e){
-    const file=e.target.files[0];if(!file)return
-    if(!file.type.includes('pdf')){alert('Please upload a PDF file.');return}
-    setParsingSyllabus(true)
-    setShowAttach(false)
-    try{
-      const reader=new FileReader()
-      reader.onload=async(ev)=>{
-        try{
-          const base64=ev.target.result.split(',')[1]
-          const res=await fetch('/api/parse-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdfBase64:base64})})
-          const data=await res.json()
-          if(data.syllabus){
-            setSyllabus(data.syllabus)
-            setSyllabusName(file.name)
-          }else{
-            alert('Could not parse PDF. Try again.')
-          }
-        }catch(err){
-          alert('PDF parsing failed: '+err.message)
-        }
-        setParsingSyllabus(false)
-      }
-      reader.readAsDataURL(file)
-    }catch(err){
-      alert('Error reading file.');setParsingSyllabus(false)
-    }
-  }
-
   function buildSystem(){
     let sys='You are Memora, a precise AI study assistant for Indian students.'
-    if(profile?.board)sys+=' The student is studying '+profile.board+'.'
-    if(profile?.subject)sys+=' Their subject is '+profile.subject+'.'
-
+    if(profile?.board)sys+=' Student is studying '+profile.board+'.'
+    if(profile?.subject)sys+=' Main subject: '+profile.subject+'.'
     if(syllabus){
-      sys+=' The student has uploaded their EXACT college syllabus. You MUST follow this syllabus structure strictly - use exactly these units and topics, nothing more, nothing less:\n\n'+syllabus
-      sys+=' CRITICAL: Only cover units and topics listed in the above syllabus. Do not add any extra units, topics or content not in the syllabus.'
-    } else {
-      sys+=' Follow the standard syllabus for their board/course. Cover all standard units completely.'
+      sys+=' IMPORTANT: The student has uploaded their EXACT syllabus. Follow it strictly:\n\n'+syllabus+'\n\nOnly cover these exact units and topics. Nothing more.'
+    }else{
+      sys+=' Follow the standard syllabus. Cover ALL units completely, not just the first one.'
     }
-
-    sys+=' STRICT RULES: 1) Structure notes as Unit heading then numbered points. 2) Cover ALL units not just Unit 1. 3) Keep it exam-focused, no padding. 4) Use markdown: ## headings, **bold** key terms, numbered lists. 5) Do not add topics outside the syllabus.'
-
-    if(mode==='summarize')sys+=' Give a structured unit-wise bullet summary. Cover all units. Keep each point exam-relevant and concise.'
-    if(mode==='explain')sys+=' Explain in very simple language with a real-life example. Use numbered steps. Stay strictly within syllabus scope.'
-    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question strictly from the student syllabus. Use EXACTLY this format: QUESTION: [question] A) [option A] B) [option B] C) [option C] D) [option D] ANSWER: [single letter A B C or D only]. Put each part on a new line.'
-    if(notes.length>0)sys+='\n\nStudent saved notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
-    if(weakTopics.length>0)sys+='\n\nTopics this student finds difficult: '+weakTopics.join(', ')+'. Give extra attention to these.'
+    sys+=' Rules: Use ## for unit headings, **bold** for key terms, numbered lists. Keep it exam-focused. No padding.'
+    if(mode==='summarize')sys+=' Give a structured unit-wise bullet summary covering ALL units.'
+    if(mode==='explain')sys+=' Explain step by step in simple terms with examples.'
+    if(mode==='quiz')sys+=' Generate EXACTLY 1 MCQ from the syllabus. Format strictly on separate lines: QUESTION: [text] A) [opt] B) [opt] C) [opt] D) [opt] ANSWER: [A or B or C or D]'
+    if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
+    if(weakTopics.length>0)sys+='\n\nWeak topics: '+weakTopics.join(', ')
     return sys
   }
 
-  async function send(){
-    const q=input.trim();if(!q||typing)return
+  async function sendMessage(q,skipInput=false){
+    if(!q&&!skipInput)return
+    const query=q||input.trim()
+    if(!query||typing)return
     const limit=isPremium?9999:FREE_LIMIT
     if(usage>=limit){onUpgrade();return}
-    setInput('');setActiveQuiz(null)
+    if(!skipInput)setInput('')
     const attNote=attachment?.type==='url'?' [URL: '+attachment.data+']':''
-    const userMsg={id:Date.now(),user_id:user.id,role:'user',content:q+attNote,created_at:new Date().toISOString()}
+    const userMsg={id:Date.now(),user_id:user.id,role:'user',content:query+attNote,created_at:new Date().toISOString()}
     setMessages(prev=>[...prev,userMsg]);setTyping(true)
     await supabase.from('messages').insert({user_id:user.id,role:'user',content:userMsg.content})
     const apiMsgs=[...messages,userMsg].slice(-12).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}))
@@ -645,24 +639,57 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       const aiMsg={id:aiId,user_id:user.id,role:'ai',content:reply,created_at:new Date().toISOString()}
       setMessages(prev=>[...prev,aiMsg])
       await supabase.from('messages').insert({user_id:user.id,role:'ai',content:reply})
-      if(mode==='quiz'){const parsed=parseQuiz(reply);if(parsed)setActiveQuiz({...parsed,msgId:aiId,selected:null,result:null})}
+      if(mode==='quiz'){
+        const parsed=parseQuiz(reply)
+        if(parsed){setCurrentQuiz(parsed);setQuizMsgId(aiId);if(!quizTopic){setQuizTopic(query);setQuizScore(0);setQuizTotal(0)}}
+      }
     }catch(e){
-      setMessages(prev=>[...prev,{id:Date.now()+1,role:'ai',content:'Error: '+(e.message||'Try again.'),created_at:new Date().toISOString()}])
+      const errMsg=e.message==='RATE_LIMIT'
+        ?'⏳ AI is taking a short break due to high usage. Please wait 1-2 minutes and try again.'
+        :'Error: '+(e.message||'Try again.')
+      setMessages(prev=>[...prev,{id:Date.now()+1,role:'ai',content:errMsg,created_at:new Date().toISOString()}])
     }
     setTyping(false)
   }
 
-  function submitQuiz(){
-    if(!activeQuiz||!activeQuiz.selected)return
-    const correct=activeQuiz.selected===activeQuiz.correct
-    setActiveQuiz(prev=>({...prev,result:correct}))
+  async function onQuizAnswer(correct,selected){
+    const newScore=quizScore+(correct?1:0)
+    const newTotal=quizTotal+1
+    setQuizScore(newScore);setQuizTotal(newTotal)
     if(!correct){
-      const topic=messages[messages.length-2]?.content||'Unknown topic'
-      if(!weakTopics.includes(topic)){
-        const updated=[...weakTopics,topic]
-        setWeakTopics(updated)
-        supabase.from('profiles').update({weak_topics:updated}).eq('user_id',user.id)
-      }
+      const topic=quizTopic||'Unknown'
+      if(!weakTopics.includes(topic)){const updated=[...weakTopics,topic];setWeakTopics(updated);supabase.from('profiles').update({weak_topics:updated}).eq('user_id',user.id)}
+    }
+  }
+
+  async function onNextQuestion(){
+    setLoadingQuiz(true);setCurrentQuiz(null)
+    // Send a silent request for next question
+    const limit=isPremium?9999:FREE_LIMIT
+    if(usage>=limit){onUpgrade();setLoadingQuiz(false);return}
+    const sys=buildSystem()
+    const apiMsgs=[{role:'user',content:'Give me the next question on '+quizTopic}]
+    try{
+      await trackUsage()
+      const reply=await callAI(apiMsgs,sys,null,null)
+      const aiId=Date.now()+1
+      const aiMsg={id:aiId,user_id:user.id,role:'ai',content:reply,created_at:new Date().toISOString()}
+      setMessages(prev=>[...prev,aiMsg])
+      await supabase.from('messages').insert({user_id:user.id,role:'ai',content:reply})
+      const parsed=parseQuiz(reply)
+      if(parsed){setCurrentQuiz(parsed);setQuizMsgId(aiId)}
+    }catch(e){
+      setMessages(prev=>[...prev,{id:Date.now()+1,role:'ai',content:e.message==='RATE_LIMIT'?'⏳ AI is taking a break. Wait 1-2 minutes.':'Error getting next question.',created_at:new Date().toISOString()}])
+    }
+    setLoadingQuiz(false)
+  }
+
+  function endQuiz(){
+    const finalScore=quizScore;const finalTotal=quizTotal
+    setCurrentQuiz(null);setQuizTopic(null);setQuizScore(0);setQuizTotal(0);setMode('chat')
+    if(finalTotal>0){
+      const summary={id:Date.now(),role:'ai',content:'📊 **Quiz Ended!**\n\nYour score: **'+finalScore+' / '+finalTotal+'** ('+(Math.round(finalScore/finalTotal*100))+'%)\n\n'+(finalScore===finalTotal?'🎉 Perfect score! Excellent!':finalScore>=finalTotal*0.7?'👍 Good job! Keep practicing.':'📚 Keep studying. You can do better!'),created_at:new Date().toISOString()}
+      setMessages(prev=>[...prev,summary])
     }
   }
 
@@ -671,17 +698,18 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div style={{padding:'5px 14px',background:t.card2,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+      {/* Top bar */}
+      <div style={{padding:'5px 14px',background:t.card2,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,flexWrap:'wrap',gap:4}}>
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-        <span style={{fontSize:11,color:'#7B6EF6',fontWeight:500}}>{profile?.board?'🎯 '+profile.board+(profile.subject?' · '+profile.subject:''):'🎯 No board set'}</span>
-        {parsingSyllabus&&<span style={{fontSize:11,color:'#F0A86B'}}>📄 Parsing syllabus...</span>}
-        {syllabus&&!parsingSyllabus&&(
-          <div style={{display:'flex',alignItems:'center',gap:4,background:'#4DC9A022',border:'1px solid #4DC9A044',borderRadius:10,padding:'2px 8px'}}>
-            <span style={{fontSize:11,color:'#4DC9A0',fontWeight:500}}>📋 Syllabus loaded</span>
-            <button onClick={()=>{setSyllabus(null);setSyllabusName(null)}} style={{background:'none',border:'none',color:'#4DC9A0',fontSize:11,padding:0,cursor:'pointer'}}>✕</button>
-          </div>
-        )}
-      </div>
+          <span style={{fontSize:11,color:'#7B6EF6',fontWeight:500}}>{profile?.board?'🎯 '+profile.board+(profile.subject?' · '+profile.subject:''):'🎯 No board set'}</span>
+          {parsingSyllabus&&<span style={{fontSize:11,color:'#F0A86B',animation:'pulse 1.5s infinite'}}>📄 Parsing syllabus...</span>}
+          {syllabus&&!parsingSyllabus&&(
+            <div style={{display:'flex',alignItems:'center',gap:4,background:'#4DC9A022',border:'1px solid #4DC9A044',borderRadius:10,padding:'2px 8px'}}>
+              <span style={{fontSize:11,color:'#4DC9A0',fontWeight:500}}>📋 {syllabusName||'Syllabus'} loaded</span>
+              <button onClick={()=>{setSyllabus(null);setSyllabusName(null)}} style={{background:'none',border:'none',color:'#4DC9A0',fontSize:11,padding:0,cursor:'pointer'}}>✕</button>
+            </div>
+          )}
+        </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {isPremium?<Tag text="⭐ Premium" color="#F0A86B"/>:(
             <>
@@ -695,17 +723,16 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
         </div>
       </div>
 
+      {/* Messages */}
       <div style={{flex:1,overflowY:'auto',padding:'16px 14px'}}>
-        {loading&&<div style={{textAlign:'center',padding:40}}><div style={{fontSize:24,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>}
-        {!loading&&messages.length===0&&(
+        {loadingMsgs&&<div style={{textAlign:'center',padding:40}}><div style={{fontSize:24,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>}
+        {!loadingMsgs&&messages.length===0&&(
           <div style={{textAlign:'center',padding:'36px 16px',color:t.muted}}>
             <div style={{fontSize:38,marginBottom:10}}>🧠</div>
             <div style={{fontSize:16,fontWeight:600,color:t.text,marginBottom:6}}>Hi {user.user_metadata?.name||user.email.split('@')[0]}!</div>
-            <div style={{fontSize:13,lineHeight:1.7,marginBottom:20}}>Ask anything from your syllabus.<br/>I'll explain, summarize, quiz you, or analyze images & URLs.</div>
+            <div style={{fontSize:13,lineHeight:1.7,marginBottom:20}}>Ask anything from your syllabus. I'll explain, summarize, or quiz you interactively.</div>
             <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
-              {["Explain Newton's laws","Summarize the water cycle","Quiz me on Photosynthesis"].map(s=>(
-                <button key={s} onClick={()=>setInput(s)} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>{s}</button>
-              ))}
+              {["Explain Newton's laws","Summarize the water cycle","Quiz me on Photosynthesis"].map(s=>(<button key={s} onClick={()=>setInput(s)} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>{s}</button>))}
             </div>
           </div>
         )}
@@ -713,52 +740,25 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
         {messages.map(m=>(
           <div key={m.id} style={{display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start',marginBottom:14}}>
             {m.role==='ai'&&<div style={{fontSize:11,color:t.muted,marginBottom:4,paddingLeft:2}}>🧠 Memora</div>}
-            <div style={{maxWidth:'85%',padding:'10px 14px',fontSize:14,borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?'#7B6EF6':t.card,border:m.role==='ai'?`1px solid ${t.border}`:'none',color:m.role==='user'?'#fff':t.text}}>
-              {m.role==='ai'?<Markdown content={activeQuiz&&activeQuiz.msgId===m.id?m.content.replace(/QUESTION:[\s\S]*$/,'').trim():m.content} dark={dark}/>:m.content}
-            </div>
-            {activeQuiz&&activeQuiz.msgId===m.id&&(
-              <div style={{maxWidth:'85%',marginTop:10,width:'100%'}}>
-                <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px'}}>
-                  <div style={{fontSize:14,fontWeight:600,color:t.text,marginBottom:12,lineHeight:1.6}}>{activeQuiz.question}</div>
-                  <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
-                    {Object.entries(activeQuiz.options).map(([letter,text])=>{
-                      let bg=t.card2,border=t.border,col=t.text
-                      if(activeQuiz.selected===letter){bg='#7B6EF622';border='#7B6EF6';col='#7B6EF6'}
-                      if(activeQuiz.result!==null){
-                        if(letter===activeQuiz.correct){bg='#4DC9A022';border='#4DC9A0';col='#4DC9A0'}
-                        else if(activeQuiz.selected===letter&&!activeQuiz.result){bg='#F06B6B22';border='#F06B6B';col='#F06B6B'}
-                      }
-                      return(
-                        <button key={letter} onClick={()=>activeQuiz.result===null&&setActiveQuiz(prev=>({...prev,selected:letter}))}
-                          style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${border}`,background:bg,color:col,fontSize:13,textAlign:'left',cursor:activeQuiz.result!==null?'default':'pointer'}}>
-                          <strong>{letter})</strong> {text}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {activeQuiz.result===null?(
-                    <button onClick={submitQuiz} disabled={!activeQuiz.selected} style={{width:'100%',padding:'9px',borderRadius:10,border:'none',background:activeQuiz.selected?'#7B6EF6':t.border,color:'#fff',fontSize:13,fontWeight:600,opacity:activeQuiz.selected?1:0.5}}>
-                      Check Answer
-                    </button>
-                  ):(
-                    <div style={{padding:'10px 14px',borderRadius:10,background:activeQuiz.result?'#4DC9A022':'#F06B6B22',border:`1px solid ${activeQuiz.result?'#4DC9A040':'#F06B6B40'}`,textAlign:'center'}}>
-                      <div style={{fontSize:14,fontWeight:700,color:activeQuiz.result?'#4DC9A0':'#F06B6B'}}>{activeQuiz.result?'✅ Correct! Well done.':'❌ Wrong. Correct: '+activeQuiz.correct+')'} {activeQuiz.result?'':activeQuiz.options[activeQuiz.correct]}</div>
-                      {!activeQuiz.result&&<div style={{fontSize:12,color:t.muted,marginTop:4}}>Added to weak topics.</div>}
-                    </div>
-                  )}
-                </div>
+            {/* Hide raw quiz messages - show QuizCard instead */}
+            {!(mode==='quiz'&&m.role==='ai'&&m.id===quizMsgId&&currentQuiz)&&(
+              <div style={{maxWidth:'85%',padding:'10px 14px',fontSize:14,borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?'#7B6EF6':t.card,border:m.role==='ai'?`1px solid ${t.border}`:'none',color:m.role==='user'?'#fff':t.text}}>
+                {m.role==='ai'?<Markdown content={m.content} dark={dark}/>:m.content}
               </div>
             )}
-            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,paddingLeft:m.role==='ai'?2:0}}>
-              {m.role==='ai'&&<button onClick={()=>onSaveNote(m.content)} style={{fontSize:11,color:'#7B6EF6',background:'none',border:'none',padding:0}}>+ Save as note</button>}
-            </div>
+            {/* Show quiz card for current quiz question */}
+            {m.role==='ai'&&m.id===quizMsgId&&currentQuiz&&(
+              <QuizCard quiz={currentQuiz} onAnswer={onQuizAnswer} onNext={onNextQuestion} onEnd={endQuiz} score={quizScore} total={quizTotal} dark={dark}/>
+            )}
+            {m.role==='ai'&&<button onClick={()=>onSaveNote(m.content)} style={{fontSize:11,color:'#7B6EF6',background:'none',border:'none',padding:'4px 0 0 2px',cursor:'pointer',textAlign:'left'}}>+ Save as note</button>}
           </div>
         ))}
 
-        {typing&&<div style={{display:'flex',gap:4,alignItems:'center',padding:'10px 14px',background:t.card,border:`1px solid ${t.border}`,borderRadius:'16px 16px 16px 4px',width:'fit-content',marginBottom:14}}>{[0,1,2].map(i=><span key={i} style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:t.muted,animation:'bounce 1.1s ease infinite',animationDelay:i*0.18+'s'}}/>)}</div>}
+        {(typing||loadingQuiz)&&<div style={{display:'flex',gap:4,alignItems:'center',padding:'10px 14px',background:t.card,border:`1px solid ${t.border}`,borderRadius:'16px 16px 16px 4px',width:'fit-content',marginBottom:14}}>{[0,1,2].map(i=><span key={i} style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:t.muted,animation:'bounce 1.1s ease infinite',animationDelay:i*0.18+'s'}}/>)}</div>}
         <div ref={bottomRef}/>
       </div>
 
+      {/* Attachment preview */}
       {attachment&&(
         <div style={{padding:'6px 14px',borderTop:`1px solid ${t.border}`,background:t.card2,display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:12,color:'#7B6EF6'}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,50)}</span>
@@ -766,31 +766,31 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
         </div>
       )}
 
+      {/* Attach panel */}
       {showAttach&&(
         <div style={{padding:'10px 14px',borderTop:`1px solid ${t.border}`,background:t.card2}}>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} placeholder="Paste a URL to analyze..." style={{flex:1,padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:13}} onKeyDown={e=>e.key==='Enter'&&addUrl()}/>
-            <button onClick={addUrl} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:12,fontWeight:600}}>Add</button>
-            <button onClick={()=>fileRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>📷</button>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} placeholder="Paste a URL to analyze..." style={{flex:1,minWidth:150,padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:13}} onKeyDown={e=>e.key==='Enter'&&addUrl()}/>
+            <button onClick={addUrl} style={{padding:'8px 12px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:12,fontWeight:600}}>Add</button>
+            <button onClick={()=>fileRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>📷 Image</button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
-            <button onClick={()=>syllabusRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:'1px solid #4DC9A044',background:'#4DC9A011',color:'#4DC9A0',fontSize:12,fontWeight:500,whiteSpace:'nowrap'}}>📋 Syllabus PDF</button>
+            <button onClick={()=>syllabusRef.current.click()} style={{padding:'8px 12px',borderRadius:10,border:'1px solid #4DC9A044',background:'#4DC9A011',color:'#4DC9A0',fontSize:12,fontWeight:500}}>📋 Syllabus PDF</button>
             <input ref={syllabusRef} type="file" accept=".pdf" onChange={handleSyllabusPDF} style={{display:'none'}}/>
             <button onClick={()=>setShowAttach(false)} style={{background:'none',border:'none',color:t.muted,fontSize:18,padding:0}}>✕</button>
           </div>
         </div>
       )}
 
+      {/* Input */}
       <div style={{padding:'10px 14px 16px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
         {limitHit&&<div style={{fontSize:13,color:t.red,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:8,padding:'8px 12px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>Daily limit reached. <span style={{textDecoration:'underline',fontWeight:600}}>Upgrade to Premium ⭐</span></div>}
         <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
-          {modes.map(m=>(
-            <button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'4px 12px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?m.color+'20':'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400}}>{m.label}</button>
-          ))}
+          {modes.map(m=>(<button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'4px 12px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?m.color+'20':'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400}}>{m.label}</button>))}
         </div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'10px 12px',borderRadius:12,border:`1px solid ${t.border}`,background:showAttach?'#7B6EF622':'transparent',color:showAttach?'#7B6EF6':t.muted,fontSize:16,flexShrink:0}}>📎</button>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder={mode==='quiz'?'Enter a topic to get quizzed...':'Ask anything from your syllabus...'} disabled={limitHit} style={{flex:1,padding:'10px 14px',borderRadius:12,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:14}}/>
-          <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'10px 18px',borderRadius:12,border:'none',background:typing||!input.trim()||limitHit?t.border:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.5:1}}>Send</button>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()} placeholder={mode==='quiz'?'Enter topic to start quiz (e.g. Photosynthesis)...':'Ask anything from your syllabus...'} disabled={limitHit} style={{flex:1,padding:'10px 14px',borderRadius:12,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:14}}/>
+          <button onClick={()=>sendMessage()} disabled={typing||!input.trim()||limitHit} style={{padding:'10px 18px',borderRadius:12,border:'none',background:typing||!input.trim()||limitHit?t.border:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.5:1}}>Send</button>
         </div>
       </div>
     </div>
@@ -805,25 +805,17 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
   const [form,setForm]=useState({title:'',body:'',tag:''})
   const [loading,setLoading]=useState(true)
   const [expanded,setExpanded]=useState(null)
-
-  useEffect(()=>{
-    supabase.from('notes').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(({data})=>{if(data)setNotes(data);setLoading(false)})
-  },[])
-
+  useEffect(()=>{supabase.from('notes').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(({data})=>{if(data)setNotes(data);setLoading(false)})},[])
   useEffect(()=>{if(prefill){setForm({title:'AI Response',body:prefill.slice(0,800),tag:'ai'});setShowModal(true);clearPrefill()}},[prefill])
-
   async function saveNote(){
     if(!form.title.trim()||!form.body.trim())return
     const{data,error}=await supabase.from('notes').insert({user_id:user.id,title:form.title.trim(),body:form.body.trim(),tag:form.tag.trim()||'general'}).select().single()
     if(!error&&data){setNotes(prev=>[data,...prev]);setShowModal(false);setForm({title:'',body:'',tag:''})}
   }
-
   async function del(id){await supabase.from('notes').delete().eq('id',id);setNotes(prev=>prev.filter(n=>n.id!==id))}
-
   const tagColors={math:'#F0A86B',physics:'#4DC9A0',ai:'#7B6EF6',chemistry:'#F06B6B',biology:'#6BC9F0',general:t.muted}
   const filtered=filter.trim()?notes.filter(n=>n.title.toLowerCase().includes(filter.toLowerCase())||n.body.toLowerCase().includes(filter.toLowerCase())):notes
   const fld={width:'100%',padding:'9px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:13}
-
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
       <div style={{display:'flex',gap:8,padding:'10px 14px',borderBottom:`1px solid ${t.border}`,flexShrink:0}}>
@@ -842,7 +834,7 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
                   <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
                     <Tag text={n.tag} color={tagColors[n.tag]||'#7B6EF6'}/>
                     <button onClick={e=>{e.stopPropagation();del(n.id)}} style={{fontSize:12,color:t.red,background:'none',border:'none',padding:'2px 6px'}}>✕</button>
-                    <span style={{color:t.muted,fontSize:14}}>{expanded===n.id?'▲':'▼'}</span>
+                    <span style={{color:t.muted,fontSize:12}}>{expanded===n.id?'▲':'▼'}</span>
                   </div>
                 </div>
                 {expanded!==n.id&&<div style={{fontSize:13,color:t.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.body.replace(/[#*`_]/g,'').slice(0,100)}</div>}
@@ -858,10 +850,7 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700,marginBottom:18,color:t.text}}>Save Note 📝</div>
             <div style={{marginBottom:12}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Title</label><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Note title..." style={fld}/></div>
             <div style={{marginBottom:12}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Tag</label><input value={form.tag} onChange={e=>setForm({...form,tag:e.target.value})} placeholder="e.g. math, physics, ai..." style={fld}/></div>
-            <div style={{marginBottom:18}}>
-              <label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Content <span style={{fontSize:10,color:t.muted}}>(supports **bold**, *italic*, ## headings, - lists)</span></label>
-              <textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note here..." rows={5} style={{...fld,resize:'vertical',fontFamily:'monospace'}}/>
-            </div>
+            <div style={{marginBottom:18}}><label style={{fontSize:12,color:t.muted,display:'block',marginBottom:5}}>Content</label><textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note here..." rows={5} style={{...fld,resize:'vertical',fontFamily:'monospace'}}/></div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setShowModal(false)} style={{padding:'8px 16px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Cancel</button>
               <button onClick={saveNote} style={{padding:'8px 20px',borderRadius:10,border:'none',background:'#7B6EF6',color:'#fff',fontSize:13,fontWeight:600}}>Save</button>
@@ -885,22 +874,15 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,dark}){
       </div>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px',marginBottom:14}}>
         <div style={{fontSize:12,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>⚠️ Weak Topics</div>
-        {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Get quiz answers wrong and they appear here.</div>:(
+        {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Get quiz answers wrong and they appear here automatically.</div>:(
           <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {weakTopics.map(topic=>(
-              <div key={topic} style={{display:'flex',alignItems:'center',gap:6,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:20,padding:'4px 10px'}}>
-                <span style={{fontSize:12,color:t.red}}>{topic}</span>
-                <button onClick={()=>removeWeak(topic)} style={{background:'none',border:'none',color:t.red,fontSize:12,padding:0}}>✕</button>
-              </div>
-            ))}
+            {weakTopics.map(topic=>(<div key={topic} style={{display:'flex',alignItems:'center',gap:6,background:t.red+'15',border:`1px solid ${t.red}30`,borderRadius:20,padding:'4px 10px'}}><span style={{fontSize:12,color:t.red}}>{topic}</span><button onClick={()=>removeWeak(topic)} style={{background:'none',border:'none',color:t.red,fontSize:12,padding:0}}>✕</button></div>))}
           </div>
         )}
       </div>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:'14px 16px'}}>
         <div style={{fontSize:12,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>💡 Study Tips</div>
-        {['Use Quiz mode to test yourself on weak topics','Save important AI explanations as notes for later','Use Summarize mode the night before exams','Upload photos of diagrams or textbook pages for AI analysis','Add URLs of study materials to get instant summaries'].map((tip,i,arr)=>(
-          <div key={i} style={{fontSize:13,color:t.muted,padding:'6px 0',borderBottom:i<arr.length-1?`1px solid ${t.border}`:'none'}}>• {tip}</div>
-        ))}
+        {['Use Quiz mode to test yourself on weak topics','Upload your college syllabus PDF for exact unit-wise answers','Save AI explanations as notes for quick revision','Use Summarize mode the night before exams','Add URLs of study materials for instant AI summary'].map((tip,i,arr)=>(<div key={i} style={{fontSize:13,color:t.muted,padding:'6px 0',borderBottom:i<arr.length-1?`1px solid ${t.border}`:'none'}}>• {tip}</div>))}
       </div>
     </div>
   )
@@ -929,16 +911,7 @@ function SearchTab({notes,dark}){
         {!q&&<div style={{textAlign:'center',padding:'40px 16px',color:t.muted}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:14}}>Search your saved notes</div></div>}
         {q&&results.length===0&&<div style={{textAlign:'center',padding:'40px 16px',color:t.muted}}><div style={{fontSize:14}}>No results for <strong style={{color:t.text}}>"{q}"</strong></div></div>}
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {results.map((r,i)=>(
-            <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'10px 14px'}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
-                <span style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:0.5,color:'#7B6EF6'}}>📝 Note</span>
-                {r.tag&&<Tag text={r.tag} color="#7B6EF6"/>}
-              </div>
-              <div style={{fontWeight:600,fontSize:14,marginBottom:4,color:t.text}}>{hl(r.title,q)}</div>
-              <div style={{fontSize:13,color:t.muted,lineHeight:1.6}}>{hl(r.snippet,q)}</div>
-            </div>
-          ))}
+          {results.map((r,i)=>(<div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'10px 14px'}}><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}><span style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:0.5,color:'#7B6EF6'}}>📝 Note</span>{r.tag&&<Tag text={r.tag} color="#7B6EF6"/>}</div><div style={{fontWeight:600,fontSize:14,marginBottom:4,color:t.text}}>{hl(r.title,q)}</div><div style={{fontSize:13,color:t.muted,lineHeight:1.6}}>{hl(r.snippet,q)}</div></div>))}
         </div>
       </div>
     </div>
@@ -957,24 +930,12 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
         <div style={{fontSize:11,color:t.muted,marginTop:2}}>AI Study Companion</div>
       </div>
       <div style={{flex:1,padding:'10px 8px',overflowY:'auto'}}>
-        {navItems.map(item=>(
-          <button key={item.id} onClick={()=>setTab(item.id)} style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'none',background:tab===item.id?'#7B6EF622':'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:14,fontWeight:tab===item.id?600:400,display:'flex',alignItems:'center',gap:10,marginBottom:4,transition:'all 0.15s',textAlign:'left'}}>
-            <span style={{fontSize:16,width:20,textAlign:'center'}}>{item.icon}</span>
-            {item.label}
-            {item.badge>0&&<span style={{marginLeft:'auto',fontSize:10,background:'#7B6EF622',color:'#7B6EF6',borderRadius:10,padding:'1px 6px',fontWeight:700}}>{item.badge}</span>}
-          </button>
-        ))}
-        {!isPremium&&(
-          <button onClick={onUpgrade} style={{width:'100%',marginTop:10,padding:'10px 12px',borderRadius:10,border:'1px solid #7B6EF644',background:'linear-gradient(135deg,#7B6EF610,#5A50D410)',color:'#7B6EF6',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
-            <span style={{fontSize:16}}>⭐</span>Upgrade to Pro
-          </button>
-        )}
+        {navItems.map(item=>(<button key={item.id} onClick={()=>setTab(item.id)} style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'none',background:tab===item.id?'#7B6EF622':'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:14,fontWeight:tab===item.id?600:400,display:'flex',alignItems:'center',gap:10,marginBottom:4,transition:'all 0.15s',textAlign:'left'}}><span style={{fontSize:16,width:20,textAlign:'center'}}>{item.icon}</span>{item.label}{item.badge>0&&<span style={{marginLeft:'auto',fontSize:10,background:'#7B6EF622',color:'#7B6EF6',borderRadius:10,padding:'1px 6px',fontWeight:700}}>{item.badge}</span>}</button>))}
+        {!isPremium&&(<button onClick={onUpgrade} style={{width:'100%',marginTop:10,padding:'10px 12px',borderRadius:10,border:'1px solid #7B6EF644',background:'linear-gradient(135deg,#7B6EF610,#5A50D410)',color:'#7B6EF6',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:10,textAlign:'left'}}><span style={{fontSize:16}}>⭐</span>Upgrade to Pro</button>)}
         {isPremium&&<div style={{margin:'10px 4px',padding:'8px 12px',borderRadius:10,background:'#F0A86B15',border:'1px solid #F0A86B30',fontSize:12,color:'#F0A86B',fontWeight:600}}>⭐ Premium Active</div>}
       </div>
       <div style={{padding:'10px 8px',borderTop:`1px solid ${t.border}`}}>
-        <button onClick={()=>setDark(!dark)} style={{width:'100%',padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13,display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-          <span>{dark?'☀️':'🌙'}</span>{dark?'Light Mode':'Dark Mode'}
-        </button>
+        <button onClick={()=>setDark(!dark)} style={{width:'100%',padding:'8px 12px',borderRadius:10,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13,display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span>{dark?'☀️':'🌙'}</span>{dark?'Light Mode':'Dark Mode'}</button>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 4px'}}>
           <Avatar name={userName} size={30}/>
           <div style={{flex:1,overflow:'hidden'}}>
@@ -992,12 +953,7 @@ function BottomTabs({tab,setTab,notes,dark}){
   const items=[{id:'chat',icon:'💬',label:'Chat'},{id:'notes',icon:'📝',label:'Notes',badge:notes.length},{id:'progress',icon:'📊',label:'Progress'},{id:'search',icon:'🔍',label:'Search'}]
   return(
     <div style={{display:'flex',borderTop:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
-      {items.map(item=>(
-        <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,padding:'10px 4px 8px',border:'none',borderTop:`2px solid ${tab===item.id?'#7B6EF6':'transparent'}`,background:'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:10,fontWeight:tab===item.id?600:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative'}}>
-          <span style={{fontSize:18}}>{item.icon}</span>{item.label}
-          {item.badge>0&&<span style={{position:'absolute',top:6,right:'calc(50% - 16px)',fontSize:9,background:'#7B6EF6',color:'#fff',borderRadius:10,padding:'1px 4px',fontWeight:700}}>{item.badge}</span>}
-        </button>
-      ))}
+      {items.map(item=>(<button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,padding:'10px 4px 8px',border:'none',borderTop:`2px solid ${tab===item.id?'#7B6EF6':'transparent'}`,background:'transparent',color:tab===item.id?'#7B6EF6':t.muted,fontSize:10,fontWeight:tab===item.id?600:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative'}}><span style={{fontSize:18}}>{item.icon}</span>{item.label}{item.badge>0&&<span style={{position:'absolute',top:6,right:'calc(50% - 16px)',fontSize:9,background:'#7B6EF6',color:'#fff',borderRadius:10,padding:'1px 4px',fontWeight:700}}>{item.badge}</span>}</button>))}
     </div>
   )
 }
@@ -1036,12 +992,15 @@ export default function App(){
 
   async function loadProfile(userId){
     const{data}=await supabase.from('profiles').select('*').eq('user_id',userId).single()
-    if(data){setProfile(data);setWeakTopics(data.weak_topics||[]);setIsPremium(!!data.premium)}
-    else setShowProfileSetup(true)
+    if(data){
+      setProfile(data)
+      setWeakTopics(data.weak_topics||[])
+      setIsPremium(data.premium===true) // explicit check
+    }else setShowProfileSetup(true)
     setLoading(false)
   }
 
-  async function logout(){await supabase.auth.signOut();setUser(null);setProfile(null);setNotes([]);setTab('chat')}
+  async function logout(){await supabase.auth.signOut();setUser(null);setProfile(null);setNotes([]);setTab('chat');setIsPremium(false)}
   function saveFromAI(content){setNotePrefill(content);setTab('notes')}
   function onProfileDone(p){setProfile(p);setShowProfileSetup(false)}
   const t=T(dark)
@@ -1057,7 +1016,7 @@ export default function App(){
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700}}>🧠 <span style={{color:'#7B6EF6'}}>Memora</span></div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            {!isPremium&&<button onClick={()=>setShowPremium(true)} style={{fontSize:11,padding:'4px 10px',borderRadius:20,border:'1px solid #7B6EF644',background:'#7B6EF610',color:'#7B6EF6',fontWeight:600}}>⭐ Pro</button>}
+            {isPremium?<Tag text="⭐ Premium" color="#F0A86B"/>:<button onClick={()=>setShowPremium(true)} style={{fontSize:11,padding:'4px 10px',borderRadius:20,border:'1px solid #7B6EF644',background:'#7B6EF610',color:'#7B6EF6',fontWeight:600}}>⭐ Pro</button>}
             <button onClick={()=>setDark(!dark)} style={{background:'none',border:'none',fontSize:18,padding:0}}>{dark?'☀️':'🌙'}</button>
             <Avatar name={user.user_metadata?.name||user.email.split('@')[0]} size={28}/>
           </div>
