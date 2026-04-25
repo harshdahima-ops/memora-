@@ -571,15 +571,31 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   }
 
   function buildSystem(){
-    let sys='You are Memora, a smart AI study assistant for Indian students.'
-    if(profile?.board)sys+=' Student is studying '+profile.board+'.'
-    if(profile?.subject)sys+=' Main subject: '+profile.subject+'.'
-    sys+=' Be clear, precise, use simple English. Format responses with markdown: use **bold**, ## headings, - bullet points, and code blocks where relevant.'
-    if(mode==='summarize')sys+=' Give a concise bullet-point summary using markdown.'
-    if(mode==='explain')sys+=' Explain step by step in very simple terms with examples. Use numbered lists and bold for key terms.'
-    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question. Use EXACTLY this format:\nQUESTION: [question here]\nA) [option A]\nB) [option B]\nC) [option C]\nD) [option D]\nANSWER: [single letter A, B, C, or D only]'
-    if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
-    if(weakTopics.length>0)sys+='\n\nWeak topics: '+weakTopics.join(', ')
+    let sys='You are Memora, a precise AI study assistant for Indian students.'
+    if(profile?.board)sys+=' The student is studying '+profile.board+'.'
+    if(profile?.subject)sys+=' Their subject is '+profile.subject+'.'
+    sys+=`
+
+STRICT RULES YOU MUST FOLLOW:
+1. ONLY cover topics that are part of the student's syllabus and board. Do NOT add extra topics, trends, or advanced content that is outside their curriculum.
+2. When making notes, structure them EXACTLY as: Unit/Chapter heading → numbered points → sub-points. Cover ALL units completely, not just Unit 1.
+3. Keep explanations simple, exam-focused, and to the point. No unnecessary theory.
+4. Always use markdown formatting: ## for unit headings, **bold** for key terms, numbered lists for points.
+5. If the student asks for notes of a full subject, cover ALL units/chapters systematically.
+6. Do NOT pad responses with generic advice or motivational text.
+7. Focus on what will help the student score marks in their exam.`
+
+    if(mode==='summarize')sys+=' Give a structured unit-wise bullet summary. Cover all units. Keep each point exam-relevant and concise.'
+    if(mode==='explain')sys+=' Explain in very simple language with a real-life example. Use numbered steps. Stay strictly within syllabus scope.'
+    if(mode==='quiz')sys+=' Generate EXACTLY 1 multiple choice question strictly from the student syllabus. Use EXACTLY this format:
+QUESTION: [question here]
+A) [option A]
+B) [option B]
+C) [option C]
+D) [option D]
+ANSWER: [single letter A, B, C, or D only]'
+    if(notes.length>0)sys+='\n\nStudent saved notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
+    if(weakTopics.length>0)sys+='\n\nTopics this student finds difficult: '+weakTopics.join(', ')+'. Give extra attention to these.'
     return sys
   }
 
