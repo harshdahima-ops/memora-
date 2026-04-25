@@ -240,7 +240,7 @@ function AuthScreen({onAuth,dark}){
             ✨ Your Personal AI Study Companion
           </div>
           <h1 className="fade-up-d1" style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(36px,7vw,64px)',fontWeight:800,lineHeight:1.1,marginBottom:20,letterSpacing:-1}}>
-            Study Smarter.<br/><span style={{color:'#7B6EF6'}}>Score Higher.</span>
+            Study Smarter.<br/><span style={{color:'#FFFFFF'}}>Score Higher.</span>
           </h1>
           <p className="fade-up-d2" style={{fontSize:16,color:'#7A79A0',lineHeight:1.7,marginBottom:36,maxWidth:500,margin:'0 auto 36px'}}>
             AI-powered study assistant built for Indian students. Personalized for your board, exam, or college course.
