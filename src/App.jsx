@@ -109,46 +109,83 @@ function parseQuiz(text){
   }catch{return null}
 }
 
+// ── Group flat messages into conversations ─────────────────────────────────
+function groupConversations(messages){
+  if(!messages.length)return[]
+  const sorted=[...messages].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
+  const groups=[]
+  let current=[sorted[0]]
+  for(let i=1;i<sorted.length;i++){
+    const gap=new Date(sorted[i].created_at)-new Date(sorted[i-1].created_at)
+    if(gap>45*60*1000){groups.push(current);current=[sorted[i]]}
+    else current.push(sorted[i])
+  }
+  groups.push(current)
+  return groups.reverse().map(msgs=>{
+    const firstUser=msgs.find(m=>m.role==='user')
+    return{
+      id:msgs[0].id,
+      title:firstUser?firstUser.content.replace(/[#*`_\[\]]/g,'').trim().slice(0,60):'Chat session',
+      date:msgs[0].created_at?.split('T')[0]||today(),
+      messages:msgs
+    }
+  })
+}
+
+function getDateLabel(dateStr){
+  const t=today()
+  const yest=new Date();yest.setDate(yest.getDate()-1)
+  const yd=yest.toISOString().split('T')[0]
+  if(dateStr===t)return'Today'
+  if(dateStr===yd)return'Yesterday'
+  const diff=Math.floor((new Date()-new Date(dateStr))/(86400000))
+  if(diff<=7)return'Previous 7 Days'
+  return new Date(dateStr).toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+}
+
 // ── Theme ──────────────────────────────────────────────────────────────────
 const T=(dark)=>({
-  bg:      dark?'#000000':'#FFFFFF',
-  surface: dark?'#0F0F0F':'#F7F7F7',
-  card:    dark?'#161616':'#FFFFFF',
-  card2:   dark?'#1E1E1E':'#F0F0F0',
-  border:  dark?'#2A2A2A':'#E0E0E0',
-  text:    dark?'#F0F0F0':'#0A0A0A',
-  muted:   dark?'#707070':'#606060',
-  accent:  '#8B5CF6',
-  green:   '#16A34A',
-  red:     '#DC2626',
-  orange:  '#D97706',
+  bg:       dark?'#212121':'#FFFFFF',
+  sidebar:  dark?'#171717':'#F0F0F0',
+  surface:  dark?'#2A2A2A':'#F7F7F7',
+  card:     dark?'#2F2F2F':'#FFFFFF',
+  card2:    dark?'#383838':'#F0F0F0',
+  border:   dark?'#3A3A3A':'#E0E0E0',
+  text:     dark?'#ECECEC':'#0A0A0A',
+  muted:    dark?'#8C8C8C':'#606060',
+  accent:   '#8B5CF6',
+  green:    '#16A34A',
+  red:      '#DC2626',
+  orange:   '#D97706',
+  hoverNav: dark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)',
+  userBubble:dark?'#303030':'#F0F0F0',
 })
 
 const CSS=(dark)=>`
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;}
-body{font-family:'Inter',sans-serif;background:${dark?'#000000':'#FFFFFF'};color:${dark?'#F0F0F0':'#0A0A0A'};-webkit-font-smoothing:antialiased;}
-input,textarea,button,select{font-family:'Inter',sans-serif;}
-input::placeholder,textarea::placeholder{color:${dark?'#444':'#AAA'};}
+body{font-family:'DM Sans',sans-serif;background:${dark?'#212121':'#FFFFFF'};color:${dark?'#ECECEC':'#0A0A0A'};-webkit-font-smoothing:antialiased;}
+input,textarea,button,select{font-family:'DM Sans',sans-serif;}
+input::placeholder,textarea::placeholder{color:${dark?'#555':'#AAA'};}
 input:focus,textarea:focus,select:focus{outline:none;border-color:#8B5CF6!important;}
-button{cursor:pointer;transition:opacity 0.15s;}
-button:hover{opacity:0.85;}
+button{cursor:pointer;transition:background 0.15s,color 0.15s,opacity 0.15s;}
 button:active{transform:scale(0.97);}
 ::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-thumb{background:${dark?'#333':'#CCC'};border-radius:4px;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar-thumb{background:${dark?'#444':'#CCC'};border-radius:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-.fu{animation:fadeUp 0.3s ease;}
-.fu1{animation:fadeUp 0.3s 0.1s ease both;}
-.fu2{animation:fadeUp 0.3s 0.2s ease both;}
-.fu3{animation:fadeUp 0.3s 0.3s ease both;}
-.fu4{animation:fadeUp 0.3s 0.4s ease both;}
-.msg{animation:fadeUp 0.2s ease;}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fu{animation:fadeUp 0.25s ease both;}
+.fu1{animation:fadeUp 0.25s 0.05s ease both;}
+.fu2{animation:fadeUp 0.25s 0.12s ease both;}
+.fu3{animation:fadeUp 0.25s 0.2s ease both;}
+.msg{animation:fadeUp 0.2s ease both;}
 `
 
-// ── Markdown ───────────────────────────────────────────────────────────────
+// ── Markdown renderer ──────────────────────────────────────────────────────
 function MD({content,dark}){
   if(!content)return null
   const t=T(dark)
@@ -164,7 +201,7 @@ function MD({content,dark}){
       if(h.i>0)parts.push(rem.slice(0,h.i))
       if(h.t==='b')parts.push(<strong key={k++} style={{fontWeight:600,color:t.text}}>{h.v}</strong>)
       else if(h.t==='i')parts.push(<em key={k++}>{h.v}</em>)
-      else parts.push(<code key={k++} style={{background:t.card2,borderRadius:3,padding:'1px 5px',fontSize:'0.87em',fontFamily:'monospace',color:t.accent}}>{h.v}</code>)
+      else parts.push(<code key={k++} style={{background:t.card2,borderRadius:4,padding:'1px 6px',fontSize:'0.875em',fontFamily:'monospace',color:t.accent}}>{h.v}</code>)
       rem=rem.slice(h.i+h.f.length)
     }
     return parts.length===1&&typeof parts[0]==='string'?parts[0]:parts
@@ -175,144 +212,90 @@ function MD({content,dark}){
     const l=lines[i]
     if(l.startsWith('```')){
       if(!inCode){inCode=true;codeLines=[];lang=l.slice(3).trim()}
-      else{els.push(<div key={i} style={{background:dark?'#0A0A0A':'#F5F5F5',borderRadius:8,border:`1px solid ${t.border}`,overflow:'hidden',margin:'8px 0'}}>
+      else{els.push(<div key={i} style={{background:dark?'#1A1A1A':'#F5F5F5',borderRadius:8,border:`1px solid ${t.border}`,overflow:'hidden',margin:'10px 0'}}>
         {lang&&<div style={{padding:'5px 14px',fontSize:11,color:t.muted,borderBottom:`1px solid ${t.border}`,fontWeight:500}}>{lang}</div>}
-        <pre style={{padding:'12px 14px',fontSize:13,overflowX:'auto',fontFamily:'monospace',lineHeight:1.6,color:t.text}}><code>{codeLines.join('\n')}</code></pre>
+        <pre style={{padding:'14px',fontSize:13,overflowX:'auto',fontFamily:'monospace',lineHeight:1.65,color:t.text}}><code>{codeLines.join('\n')}</code></pre>
       </div>);inCode=false;codeLines=[];lang=''}
       i++;continue
     }
     if(inCode){codeLines.push(l);i++;continue}
-    if(l.startsWith('### '))els.push(<h3 key={i} style={{fontSize:14,fontWeight:600,margin:'8px 0 4px',color:t.text}}>{fmtLine(l.slice(4))}</h3>)
-    else if(l.startsWith('## '))els.push(<h2 key={i} style={{fontSize:16,fontWeight:700,margin:'12px 0 6px',color:t.text}}>{fmtLine(l.slice(3))}</h2>)
-    else if(l.startsWith('# '))els.push(<h1 key={i} style={{fontSize:18,fontWeight:700,margin:'14px 0 8px',color:t.text}}>{fmtLine(l.slice(2))}</h1>)
-    else if(l.startsWith('---'))els.push(<hr key={i} style={{border:'none',borderTop:`1px solid ${t.border}`,margin:'10px 0'}}/>)
-    else if(/^[-*•] /.test(l))els.push(<div key={i} style={{display:'flex',gap:8,marginBottom:4,paddingLeft:4}}><span style={{color:t.accent,marginTop:3,flexShrink:0,fontSize:12}}>●</span><span style={{fontSize:14,color:t.muted,lineHeight:1.65}}>{fmtLine(l.replace(/^[-*•] /,''))}</span></div>)
-    else if(/^\d+\. /.test(l)){const[,n,tx]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={{display:'flex',gap:8,marginBottom:4,paddingLeft:4}}><span style={{color:t.accent,fontWeight:600,fontSize:13,flexShrink:0,minWidth:18}}>{n}.</span><span style={{fontSize:14,color:t.muted,lineHeight:1.65}}>{fmtLine(tx)}</span></div>)}
-    else if(l.startsWith('> '))els.push(<div key={i} style={{borderLeft:`3px solid ${t.accent}`,paddingLeft:12,margin:'6px 0',color:t.muted,fontSize:14,fontStyle:'italic'}}>{fmtLine(l.slice(2))}</div>)
-    else if(l.trim()==='')els.push(<div key={i} style={{height:7}}/>)
-    else els.push(<p key={i} style={{fontSize:14,color:t.muted,lineHeight:1.7,margin:'2px 0'}}>{fmtLine(l)}</p>)
+    if(l.startsWith('### '))els.push(<h3 key={i} style={{fontSize:15,fontWeight:600,margin:'10px 0 5px',color:t.text}}>{fmtLine(l.slice(4))}</h3>)
+    else if(l.startsWith('## '))els.push(<h2 key={i} style={{fontSize:17,fontWeight:700,margin:'14px 0 7px',color:t.text}}>{fmtLine(l.slice(3))}</h2>)
+    else if(l.startsWith('# '))els.push(<h1 key={i} style={{fontSize:20,fontWeight:700,margin:'16px 0 8px',color:t.text}}>{fmtLine(l.slice(2))}</h1>)
+    else if(l.startsWith('---'))els.push(<hr key={i} style={{border:'none',borderTop:`1px solid ${t.border}`,margin:'12px 0'}}/>)
+    else if(/^[-*•] /.test(l))els.push(<div key={i} style={{display:'flex',gap:9,marginBottom:5,paddingLeft:4}}><span style={{color:t.accent,marginTop:4,flexShrink:0,fontSize:11}}>●</span><span style={{fontSize:15,color:t.text,lineHeight:1.7}}>{fmtLine(l.replace(/^[-*•] /,''))}</span></div>)
+    else if(/^\d+\. /.test(l)){const[,n,tx]=l.match(/^(\d+)\. (.*)/);els.push(<div key={i} style={{display:'flex',gap:9,marginBottom:5,paddingLeft:4}}><span style={{color:t.accent,fontWeight:600,fontSize:13,flexShrink:0,minWidth:20}}>{n}.</span><span style={{fontSize:15,color:t.text,lineHeight:1.7}}>{fmtLine(tx)}</span></div>)}
+    else if(l.startsWith('> '))els.push(<div key={i} style={{borderLeft:`3px solid ${t.accent}`,paddingLeft:14,margin:'8px 0',color:t.muted,fontSize:15,fontStyle:'italic'}}>{fmtLine(l.slice(2))}</div>)
+    else if(l.trim()==='')els.push(<div key={i} style={{height:8}}/>)
+    else els.push(<p key={i} style={{fontSize:15,color:t.text,lineHeight:1.75,margin:'3px 0'}}>{fmtLine(l)}</p>)
     i++
   }
-  return <div style={{lineHeight:1.65}}>{els}</div>
+  return <div style={{lineHeight:1.7}}>{els}</div>
 }
 
-// ── Auth / Landing ─────────────────────────────────────────────────────────
+// ── Landing / Auth ─────────────────────────────────────────────────────────
 function Landing({onAuth}){
-  const [view,setView]=useState('home')
-  const [mode,setMode]=useState('login')
-  const [name,setName]=useState('')
-  const [email,setEmail]=useState('')
-  const [pass,setPass]=useState('')
-  const [err,setErr]=useState('')
-  const [loading,setLoading]=useState(false)
-
-  async function googleLogin(){
-    setLoading(true)
-    const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}})
-    if(error){setErr(error.message);setLoading(false)}
-  }
+  const[view,setView]=useState('home')
+  const[mode,setMode]=useState('login')
+  const[name,setName]=useState('')
+  const[email,setEmail]=useState('')
+  const[pass,setPass]=useState('')
+  const[err,setErr]=useState('')
+  const[loading,setLoading]=useState(false)
+  async function googleLogin(){setLoading(true);const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});if(error){setErr(error.message);setLoading(false)}}
   async function submit(){
     setErr('')
     if(!email.trim()||!pass.trim()){setErr('Email and password required.');return}
     if(mode==='signup'&&!name.trim()){setErr('Name is required.');return}
     setLoading(true)
     try{
-      if(mode==='signup'){
-        const{data,error}=await supabase.auth.signUp({email:email.trim(),password:pass.trim(),options:{data:{name:name.trim()}}})
-        if(error)throw error
-        if(data.user)onAuth(data.user)
-        else setErr('Check your email to confirm.')
-      }else{
-        const{data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password:pass.trim()})
-        if(error)throw error
-        onAuth(data.user)
-      }
-    }catch(e){setErr(e.message||'Something went wrong.')}
+      let result
+      if(mode==='login'){result=await supabase.auth.signInWithPassword({email:email.trim(),password:pass})}
+      else{result=await supabase.auth.signUp({email:email.trim(),password:pass,options:{data:{name:name.trim()}}})}
+      if(result.error)setErr(result.error.message)
+      else if(result.data?.user)onAuth(result.data.user)
+    }catch(e){setErr(e.message)}
     setLoading(false)
   }
-
-  if(view==='auth'){
-    return(
-      <div style={{minHeight:'100vh',display:'flex',background:'#000'}}>
-        <style>{CSS(true)}</style>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:40}}>
-          <div style={{width:'100%',maxWidth:380}} className="fu">
-            <button onClick={()=>setView('home')} style={{background:'none',border:'none',color:'#666',fontSize:13,cursor:'pointer',marginBottom:28,display:'flex',alignItems:'center',gap:6,padding:0}}>← Back</button>
-            <div style={{marginBottom:28}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#F0F0F0',marginBottom:4}}>{mode==='login'?'Welcome back':'Join Memora'}</div>
-              <div style={{fontSize:13,color:'#666'}}>{mode==='login'?'Continue your learning journey':'Start studying smarter today — free'}</div>
-            </div>
-            <button onClick={googleLogin} disabled={loading} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:13,borderRadius:10,border:'1px solid #2A2A2A',background:'#161616',color:'#F0F0F0',fontSize:14,fontWeight:500,marginBottom:18}}>
-              <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
-              Continue with Google
-            </button>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}><div style={{flex:1,height:1,background:'#2A2A2A'}}/><span style={{fontSize:11,color:'#444'}}>or</span><div style={{flex:1,height:1,background:'#2A2A2A'}}/></div>
-            <div style={{display:'flex',background:'#161616',borderRadius:8,padding:3,marginBottom:18,border:'1px solid #2A2A2A'}}>
-              {['login','signup'].map(m=>(<button key={m} onClick={()=>{setMode(m);setErr('')}} style={{flex:1,padding:'8px',borderRadius:6,border:'none',fontSize:13,fontWeight:500,background:mode===m?'#8B5CF6':'transparent',color:mode===m?'#fff':'#666'}}>{m==='login'?'Login':'Sign Up'}</button>))}
-            </div>
-            {mode==='signup'&&(<div style={{marginBottom:12}}><label style={{fontSize:12,color:'#666',display:'block',marginBottom:4}}>Name</label><input style={{width:'100%',padding:'11px 12px',borderRadius:8,border:'1px solid #2A2A2A',background:'#161616',color:'#F0F0F0',fontSize:14}} placeholder="Your name" value={name} onChange={e=>setName(e.target.value)}/></div>)}
-            <div style={{marginBottom:12}}><label style={{fontSize:12,color:'#666',display:'block',marginBottom:4}}>Email</label><input style={{width:'100%',padding:'11px 12px',borderRadius:8,border:'1px solid #2A2A2A',background:'#161616',color:'#F0F0F0',fontSize:14}} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-            <div style={{marginBottom:20}}><label style={{fontSize:12,color:'#666',display:'block',marginBottom:4}}>Password</label><input style={{width:'100%',padding:'11px 12px',borderRadius:8,border:'1px solid #2A2A2A',background:'#161616',color:'#F0F0F0',fontSize:14}} type="password" placeholder="min 6 characters" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/></div>
-            {err&&<div style={{fontSize:13,color:'#EF4444',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'9px 12px',marginBottom:14,textAlign:'center'}}>{err}</div>}
-            <button onClick={submit} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,border:'none',background:loading?'#2A2A2A':'#8B5CF6',color:'#fff',fontSize:14,fontWeight:600}}>{loading?'Please wait...':(mode==='login'?'Login':'Create Free Account')}</button>
-            <div style={{textAlign:'center',marginTop:16,fontSize:13,color:'#666'}}>
-              {mode==='login'?<>New here? <button onClick={()=>{setMode('signup');setErr('')}} style={{background:'none',border:'none',color:'#8B5CF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Sign up free</button></>:<>Have account? <button onClick={()=>{setMode('login');setErr('')}} style={{background:'none',border:'none',color:'#8B5CF6',fontSize:13,fontWeight:600,cursor:'pointer'}}>Login</button></>}
-            </div>
-          </div>
+  const t=T(true)
+  if(view==='auth')return(
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:380}} className="fu">
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <div style={{fontSize:36,marginBottom:10}}>🧠</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#ECECEC',letterSpacing:-0.5}}>Memora</div>
+          <div style={{fontSize:14,color:t.muted,marginTop:4}}>{mode==='login'?'Welcome back':'Create your account'}</div>
         </div>
-        <div style={{flex:1,background:'#0A0A0A',borderLeft:'1px solid #1A1A1A',display:'flex',alignItems:'center',justifyContent:'center',padding:40}}>
-          <div style={{maxWidth:340}} className="fu1">
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:'#F0F0F0',marginBottom:6}}>🧠 Memora</div>
-            <div style={{fontSize:13,color:'#666',marginBottom:24,lineHeight:1.7}}>AI study assistant for every Indian student. Class 5 to competitive exams to college.</div>
-            {[['🎯','40+ boards, exams & college courses'],['🧩','Interactive quiz with weak topic tracking'],['📋','Upload syllabus PDF for exact answers'],['💬','Study AI + General AI in one place'],['⭐','Premium: Unlimited messages at ₹99/mo']].map(([ic,tx],i)=>(
-              <div key={i} style={{display:'flex',gap:12,padding:'9px 12px',border:'1px solid #1A1A1A',borderRadius:8,marginBottom:8,alignItems:'flex-start'}}>
-                <span style={{fontSize:16,flexShrink:0}}>{ic}</span><span style={{fontSize:13,color:'#888',lineHeight:1.55}}>{tx}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Home
-  return(
-    <div style={{minHeight:'100vh',background:'#000',color:'#F0F0F0',overflowY:'auto'}}>
-      <style>{CSS(true)}</style>
-      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 40px',borderBottom:'1px solid #141414'}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={()=>{setView('auth');setMode('login')}} style={{padding:'8px 20px',borderRadius:8,border:'1px solid #2A2A2A',background:'transparent',color:'#CCC',fontSize:13,fontWeight:500}}>Login</button>
-          <button onClick={()=>{setView('auth');setMode('signup')}} style={{padding:'8px 20px',borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600}}>Get Started Free</button>
-        </div>
-      </nav>
-      <div style={{maxWidth:760,margin:'0 auto',textAlign:'center',padding:'80px 24px 60px'}}>
-        <div className="fu" style={{display:'inline-block',background:'rgba(139,92,246,0.1)',border:'1px solid rgba(139,92,246,0.2)',borderRadius:20,padding:'5px 16px',fontSize:12,color:'#A78BFA',fontWeight:500,marginBottom:24,letterSpacing:0.3}}>✦ AI Study Companion for Indian Students</div>
-        <h1 className="fu1" style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(38px,6vw,68px)',fontWeight:800,lineHeight:1.06,letterSpacing:-2,marginBottom:22}}>Study Smarter.<br/><span style={{color:'#8B5CF6'}}>Score Higher.</span></h1>
-        <p className="fu2" style={{fontSize:17,color:'#888',lineHeight:1.7,marginBottom:38,maxWidth:520,margin:'0 auto 38px'}}>The most personalized AI study assistant — from Class 5 to competitive exams to college. Built for India.</p>
-        <div className="fu3" style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap',marginBottom:16}}>
-          <button onClick={googleLogin} style={{display:'flex',alignItems:'center',gap:10,padding:'13px 24px',borderRadius:10,border:'1px solid #2A2A2A',background:'#161616',color:'#F0F0F0',fontSize:14,fontWeight:500}}>
-            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.48A4.8 4.8 0 014.5 9a5 5 0 01.32-1.76V5.17H2.18a8 8 0 000 7.66l2.32-2.35z"/><path fill="#EA4335" d="M8.98 4.72c1.3 0 2.11.56 2.6 1.03l1.93-1.93C12.07 2.79 10.6 2 8.98 2a8 8 0 00-6.8 3.83l2.32 2.07a4.77 4.77 0 014.48-3.18z"/></svg>
-            Continue with Google
+        <div style={{background:'#1C1C1C',border:'1px solid #2E2E2E',borderRadius:14,padding:28}}>
+          <button onClick={googleLogin} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,fontWeight:500,display:'flex',alignItems:'center',justifyContent:'center',gap:10,marginBottom:20}}>
+            <span style={{fontSize:16}}>G</span> Continue with Google
           </button>
-          <button onClick={()=>{setView('auth');setMode('signup')}} style={{padding:'13px 28px',borderRadius:10,border:'none',background:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:600}}>Start Free — No Card Needed</button>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+            <div style={{flex:1,height:1,background:'#2E2E2E'}}/>
+            <span style={{fontSize:11,color:t.muted}}>or</span>
+            <div style={{flex:1,height:1,background:'#2E2E2E'}}/>
+          </div>
+          <div style={{display:'flex',background:'#252525',borderRadius:7,border:'1px solid #2E2E2E',marginBottom:18,padding:3}}>
+            {['login','signup'].map(m=><button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px',borderRadius:5,border:'none',background:mode===m?'#8B5CF6':'transparent',color:mode===m?'#fff':t.muted,fontSize:13,fontWeight:mode===m?600:400,textTransform:'capitalize'}}>{m==='login'?'Sign In':'Sign Up'}</button>)}
+          </div>
+          {mode==='signup'&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:10}}/>}
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:10}}/>
+          <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Password" type="password" onKeyDown={e=>e.key==='Enter'&&submit()} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:14}}/>
+          {err&&<div style={{fontSize:13,color:'#DC2626',marginBottom:12,textAlign:'center'}}>{err}</div>}
+          <button onClick={submit} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:700}}>{loading?'Please wait...':(mode==='login'?'Sign In →':'Create Account →')}</button>
         </div>
-        <div className="fu4" style={{fontSize:12,color:'#444'}}>20 free AI messages per day • No credit card required</div>
+        <div style={{textAlign:'center',marginTop:20}}><button onClick={()=>setView('home')} style={{background:'none',border:'none',color:t.muted,fontSize:13}}>← Back</button></div>
       </div>
-      <div style={{display:'flex',justifyContent:'center',gap:56,flexWrap:'wrap',padding:'0 24px 64px'}}>
-        {[['40+','Boards & Courses'],['₹99','Premium/Month'],['Free','To Get Started'],['24/7','Available']].map(([v,l],i)=>(<div key={i} style={{textAlign:'center'}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:30,fontWeight:800,color:'#8B5CF6'}}>{v}</div><div style={{fontSize:12,color:'#555',marginTop:4}}>{l}</div></div>))}
-      </div>
-      <div style={{maxWidth:920,margin:'0 auto',padding:'0 24px 80px'}}>
-        <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,textAlign:'center',marginBottom:40,letterSpacing:-0.3}}>Everything you need to ace your exams</h2>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
-          {[{ic:'🎯',t:'Study AI',d:'Syllabus-aware AI personalized for your exact board, exam or college course. Covers Class 5 to PhD.'},{ic:'💬',t:'General AI',d:'Not just study — chat about anything, get advice, explore ideas. Two AIs in one.'},{ic:'🧩',t:'Interactive Quiz',d:'One question at a time. Click your answer, see result instantly, track score and weak topics.'},{ic:'📝',t:'Smart Modes',d:'Chat, Summarize, Explain, Quiz, Flashcards, Predict. Switch modes anytime for what you need.'},{ic:'📋',t:'Syllabus Upload',d:'Upload your college PDF. AI reads your exact units and only answers from your syllabus.'},{ic:'⭐',t:'Premium Plan',d:'₹99/month for unlimited messages, all features. Pay with UPI, card, net banking.'}].map((f,i)=>(
-            <div key={i} style={{background:'#0A0A0A',border:'1px solid #1A1A1A',borderRadius:12,padding:'20px 20px'}}>
-              <div style={{fontSize:26,marginBottom:12}}>{f.ic}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,marginBottom:6,color:'#F0F0F0'}}>{f.t}</div>
-              <div style={{fontSize:13,color:'#666',lineHeight:1.6}}>{f.d}</div>
-            </div>
-          ))}
-        </div>
+    </div>
+  )
+  return(
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20,textAlign:'center'}}>
+      <div className="fu" style={{maxWidth:480,width:'100%'}}>
+        <div style={{fontSize:52,marginBottom:16}}>🧠</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:38,fontWeight:800,color:'#ECECEC',letterSpacing:-1,marginBottom:8}}>Memora</div>
+        <div style={{fontSize:16,color:'#8C8C8C',marginBottom:40,lineHeight:1.6}}>Your AI study companion.<br/>Explain, quiz, summarize — anything from your syllabus.</div>
+        <button onClick={()=>setView('auth')} style={{padding:'14px 40px',borderRadius:10,border:'none',background:'#8B5CF6',color:'#fff',fontSize:15,fontWeight:700,marginBottom:12}}>Get Started Free →</button>
+        <div style={{fontSize:13,color:'#555'}}>No credit card required</div>
       </div>
     </div>
   )
@@ -321,45 +304,53 @@ function Landing({onAuth}){
 // ── Profile Setup ──────────────────────────────────────────────────────────
 function ProfileSetup({user,onDone,dark}){
   const t=T(dark)
-  const [board,setBoard]=useState('')
-  const [subject,setSubject]=useState('')
-  const [saving,setSaving]=useState(false)
-  const subjects=board?BOARDS[board]:[]
+  const[step,setStep]=useState(0)
+  const[group,setGroup]=useState('')
+  const[board,setBoard]=useState('')
+  const[subject,setSubject]=useState('')
+  const[saving,setSaving]=useState(false)
+  const groups=Object.keys(BOARD_GROUPS)
+  const boards=group?BOARD_GROUPS[group]:[]
+  const subjects=board?BOARDS[board]||[]:[]
   async function save(){
     if(!board)return
     setSaving(true)
-    await supabase.from('profiles').upsert({user_id:user.id,board,subject:subject||null,weak_topics:[],premium:false})
-    onDone({board,subject,premium:false,weak_topics:[]})
+    const{data,error}=await supabase.from('profiles').upsert({user_id:user.id,name:user.user_metadata?.name||user.email.split('@')[0],board,subject:subject||null,weak_topics:[],premium:false},{onConflict:'user_id'}).select().single()
+    if(!error&&data)onDone(data)
     setSaving(false)
   }
-  const sel={width:'100%',padding:'11px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:board?t.text:t.muted,fontSize:14}
   return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:t.bg}}>
+    <div style={{minHeight:'100vh',background:t.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
       <style>{CSS(dark)}</style>
-      <div style={{width:'100%',maxWidth:420}} className="fu">
-        <div style={{textAlign:'center',marginBottom:30}}>
-          <div style={{fontSize:44,marginBottom:10}}>🎯</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text}}>Set up your profile</div>
-          <div style={{fontSize:13,color:t.muted,marginTop:6}}>Memora personalizes AI for your exact course</div>
+      <div style={{width:'100%',maxWidth:460}} className="fu">
+        <div style={{marginBottom:28,textAlign:'center'}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text,marginBottom:6}}>Set up your profile</div>
+          <div style={{fontSize:14,color:t.muted}}>So Memora can personalize your study experience.</div>
         </div>
         <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:24}}>
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,color:t.muted,display:'block',marginBottom:5,fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Board / Exam / Course *</label>
-            <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={sel}>
-              <option value="">Select your course...</option>
-              {Object.entries(BOARD_GROUPS).map(([g,opts])=>(<optgroup key={g} label={g}>{opts.map(b=><option key={b} value={b}>{b}</option>)}</optgroup>))}
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Category</label>
+            <select value={group} onChange={e=>{setGroup(e.target.value);setBoard('');setSubject('')}} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+              <option value=''>Select your category...</option>
+              {groups.map(g=><option key={g} value={g}>{g}</option>)}
             </select>
           </div>
-          {subjects.length>0&&(<div style={{marginBottom:20}}>
-            <label style={{fontSize:11,color:t.muted,display:'block',marginBottom:5,fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Subject (optional)</label>
-            <select value={subject} onChange={e=>setSubject(e.target.value)} style={{...sel,color:subject?t.text:t.muted}}>
-              <option value="">All subjects</option>
+          {group&&<div style={{marginBottom:16}}>
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Course / Class</label>
+            <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+              <option value=''>Select...</option>
+              {boards.map(b=><option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>}
+          {board&&subjects.length>0&&<div style={{marginBottom:20}}>
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Primary Subject <span style={{fontWeight:400,textTransform:'none'}}>(optional)</span></label>
+            <select value={subject} onChange={e=>setSubject(e.target.value)} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+              <option value=''>All subjects</option>
               {subjects.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
-          </div>)}
-          <button onClick={save} disabled={!board||saving} style={{width:'100%',padding:12,borderRadius:8,border:'none',background:!board||saving?t.border:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:600,opacity:!board?0.5:1}}>{saving?'Saving...':'Start Learning →'}</button>
+          </div>}
+          <button onClick={save} disabled={!board||saving} style={{width:'100%',padding:13,borderRadius:8,border:'none',background:board?'#8B5CF6':t.border,color:'#fff',fontSize:15,fontWeight:700,opacity:!board?0.4:1}}>{saving?'Saving...':'Start Studying →'}</button>
         </div>
-        <div style={{textAlign:'center',marginTop:14}}><button onClick={()=>onDone(null)} style={{background:'none',border:'none',color:t.muted,fontSize:13,cursor:'pointer'}}>Skip for now</button></div>
       </div>
     </div>
   )
@@ -368,46 +359,60 @@ function ProfileSetup({user,onDone,dark}){
 // ── Premium Modal ──────────────────────────────────────────────────────────
 function PremiumModal({onClose,dark,user}){
   const t=T(dark)
-  const [loading,setLoading]=useState(false)
-  const [done,setDone]=useState(false)
+  const[loading,setLoading]=useState(false)
+  const[done,setDone]=useState(false)
   async function pay(){
     setLoading(true)
     try{
-      await new Promise((res,rej)=>{if(window.Razorpay){res();return}const s=document.createElement('script');s.src='https://checkout.razorpay.com/v1/checkout.js';s.onload=res;s.onerror=rej;document.body.appendChild(s)})
       const r=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create_order'})})
-      const od=await r.json()
-      if(od.error){alert('Payment error: '+od.error);setLoading(false);return}
-      new window.Razorpay({key:od.keyId,amount:od.amount,currency:od.currency,order_id:od.orderId,name:'Memora Premium',description:'Unlimited AI messages per month',prefill:{email:user?.email||'',name:user?.user_metadata?.name||''},theme:{color:'#8B5CF6'},handler:async(response)=>{const vr=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify_payment',...response})});const vd=await vr.json();if(vd.verified){await supabase.from('profiles').update({premium:true,premium_since:new Date().toISOString()}).eq('user_id',user.id);setDone(true)}else alert('Verification failed.')},modal:{ondismiss:()=>setLoading(false)}}).open()
+      const order=await r.json()
+      if(order.error)throw new Error(order.error)
+      const options={key:order.keyId,amount:order.amount,currency:order.currency,name:'Memora',description:'Premium Plan',order_id:order.orderId,
+        handler:async(response)=>{
+          const v=await fetch('/api/payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify_payment',...response})})
+          const vd=await v.json()
+          if(vd.verified){await supabase.from('profiles').update({premium:true}).eq('user_id',user.id);setDone(true)}
+          else alert('Payment verification failed.')
+        },
+        prefill:{email:user.email},theme:{color:'#8B5CF6'}}
+      const rzp=new window.Razorpay(options);rzp.open()
     }catch(e){alert('Payment error: '+e.message)}
     setLoading(false)
   }
   if(done)return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:16,padding:36,width:'100%',maxWidth:360,textAlign:'center'}} className="fu">
-        <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:16,padding:40,width:'100%',maxWidth:360,textAlign:'center'}} className="fu">
+        <div style={{fontSize:48,marginBottom:14}}>🎉</div>
         <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text,marginBottom:8}}>You're Premium!</div>
         <div style={{fontSize:14,color:t.muted,marginBottom:24}}>Unlimited messages and all features unlocked.</div>
-        <button onClick={()=>{onClose();window.location.reload()}} style={{width:'100%',padding:12,borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:600}}>Start Studying →</button>
+        <button onClick={()=>{onClose();window.location.reload()}} style={{width:'100%',padding:13,borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:600}}>Start Studying →</button>
       </div>
     </div>
   )
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20,overflowY:'auto'}}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20,overflowY:'auto'}}>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:16,padding:28,width:'100%',maxWidth:400}} className="fu">
         <div style={{textAlign:'center',marginBottom:22}}>
-          <div style={{fontSize:40,marginBottom:8}}>⭐</div>
+          <div style={{fontSize:36,marginBottom:8}}>⭐</div>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text}}>Memora Premium</div>
           <div style={{fontSize:13,color:t.muted,marginTop:3}}>Study without limits</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:20}}>
-          {[['∞','Unlimited AI messages every day'],['🧩','Unlimited quiz questions'],['📁','Upload images, PDFs & URLs'],['📋','Syllabus PDF upload'],['⚡','Priority AI response speed']].map(([ic,lb],i)=>(<div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:t.card2,borderRadius:8}}><span style={{fontSize:16,width:24,textAlign:'center'}}>{ic}</span><span style={{fontSize:13,color:t.text}}>{lb}</span></div>))}
+          {[['∞','Unlimited AI messages every day'],['🧩','Unlimited quiz questions'],['📁','Upload images, PDFs & URLs'],['📋','Syllabus PDF upload'],['⚡','Priority AI response speed']].map(([ic,lb],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',background:t.card2,borderRadius:8}}>
+              <span style={{fontSize:16,width:24,textAlign:'center'}}>{ic}</span>
+              <span style={{fontSize:13,color:t.text}}>{lb}</span>
+            </div>
+          ))}
         </div>
         <div style={{background:'#8B5CF6',borderRadius:10,padding:'14px 20px',textAlign:'center',marginBottom:14}}>
           <div style={{fontSize:28,fontWeight:800,color:'#fff',fontFamily:"'Syne',sans-serif"}}>₹99 <span style={{fontSize:14,fontWeight:400,opacity:0.8}}>/ month</span></div>
-          <div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginTop:2}}>Cancel anytime • Instant access</div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginTop:2}}>Cancel anytime · Instant access</div>
         </div>
         <div style={{display:'flex',gap:6,justifyContent:'center',flexWrap:'wrap',marginBottom:14}}>
-          {['UPI','Credit Card','Debit Card','Net Banking','Wallets'].map(m=>(<span key={m} style={{fontSize:10,padding:'3px 9px',borderRadius:6,background:t.card2,border:`1px solid ${t.border}`,color:t.muted,fontWeight:500}}>{m}</span>))}
+          {['UPI','Credit Card','Debit Card','Net Banking','Wallets'].map(m=>(
+            <span key={m} style={{fontSize:10,padding:'3px 9px',borderRadius:6,background:t.card2,border:`1px solid ${t.border}`,color:t.muted,fontWeight:500}}>{m}</span>
+          ))}
         </div>
         <button onClick={pay} disabled={loading} style={{width:'100%',padding:13,borderRadius:8,border:'none',background:loading?t.border:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:700,marginBottom:8}}>{loading?'Loading...':'Pay ₹99 & Upgrade Now'}</button>
         <div style={{fontSize:11,color:t.muted,textAlign:'center',marginBottom:12}}>🔒 Secure payment by Razorpay</div>
@@ -420,12 +425,12 @@ function PremiumModal({onClose,dark,user}){
 // ── Quiz Card ──────────────────────────────────────────────────────────────
 function QuizCard({quiz,onAnswer,onNext,onEnd,score,total,dark}){
   const t=T(dark)
-  const [sel,setSel]=useState(null)
-  const [revealed,setRevealed]=useState(false)
+  const[sel,setSel]=useState(null)
+  const[revealed,setRevealed]=useState(false)
   function submit(){if(!sel)return;setRevealed(true);onAnswer(sel===quiz.correct)}
   function next(){setSel(null);setRevealed(false);onNext()}
   return(
-    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'18px 16px',maxWidth:'86%',marginTop:8}} className="msg">
+    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'18px 16px',width:'100%',maxWidth:500,marginTop:4}} className="msg">
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <span style={{fontSize:12,color:t.muted,fontWeight:500}}>Question {total+1}</span>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -452,7 +457,7 @@ function QuizCard({quiz,onAnswer,onNext,onEnd,score,total,dark}){
         })}
       </div>
       {!revealed?(
-        <button onClick={submit} disabled={!sel} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:sel?'#8B5CF6':t.border,color:'#fff',fontSize:14,fontWeight:600,opacity:sel?1:0.45}}>Submit Answer</button>
+        <button onClick={submit} disabled={!sel} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:sel?'#8B5CF6':t.border,color:'#fff',fontSize:14,fontWeight:600,opacity:sel?1:0.4}}>Submit Answer</button>
       ):(
         <div>
           <div style={{padding:'10px 14px',borderRadius:8,background:sel===quiz.correct?dark?'rgba(22,163,74,0.1)':'rgba(22,163,74,0.06)':'rgba(220,38,38,0.08)',border:`1px solid ${sel===quiz.correct?'rgba(22,163,74,0.3)':'rgba(220,38,38,0.25)'}`,marginBottom:10,textAlign:'center'}}>
@@ -470,35 +475,42 @@ function QuizCard({quiz,onAnswer,onNext,onEnd,score,total,dark}){
 }
 
 // ── Chat Tab ───────────────────────────────────────────────────────────────
-function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremium,dark,onUpgrade,aiMode}){
+const studyModes=[
+  {id:'chat',label:'💬 Chat',color:'#8B5CF6'},
+  {id:'summarize',label:'📄 Summarize',color:'#0EA5E9'},
+  {id:'explain',label:'💡 Explain',color:'#F59E0B'},
+  {id:'quiz',label:'🧩 Quiz',color:'#10B981'},
+  {id:'flashcard',label:'📋 Flashcards',color:'#EC4899'},
+  {id:'predict',label:'🎯 Predict',color:'#EF4444'},
+]
+
+function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremium,dark,onUpgrade,aiMode,onNewMessage}){
   const t=T(dark)
-  // FRESH chat every session — no loading from DB
-  const [messages,setMessages]=useState([])
-  const [input,setInput]=useState('')
-  const [mode,setMode]=useState('chat')
-  const [typing,setTyping]=useState(false)
-  const [usage,setUsage]=useState(0)
-  const [attachment,setAttachment]=useState(null)
-  const [urlInput,setUrlInput]=useState('')
-  const [showAttach,setShowAttach]=useState(false)
-  const [syllabus,setSyllabus]=useState(null)
-  const [syllabusName,setSyllabusName]=useState(null)
-  const [parsingSyllabus,setParsingSyllabus]=useState(false)
-  const [quizTopic,setQuizTopic]=useState(null)
-  const [quizScore,setQuizScore]=useState(0)
-  const [quizTotal,setQuizTotal]=useState(0)
-  const [currentQuiz,setCurrentQuiz]=useState(null)
-  const [quizMsgId,setQuizMsgId]=useState(null)
-  const [loadingNext,setLoadingNext]=useState(false)
+  const[messages,setMessages]=useState([])
+  const[input,setInput]=useState('')
+  const[mode,setMode]=useState('chat')
+  const[typing,setTyping]=useState(false)
+  const[usage,setUsage]=useState(0)
+  const[attachment,setAttachment]=useState(null)
+  const[urlInput,setUrlInput]=useState('')
+  const[showAttach,setShowAttach]=useState(false)
+  const[syllabus,setSyllabus]=useState(null)
+  const[syllabusName,setSyllabusName]=useState(null)
+  const[parsingSyllabus,setParsingSyllabus]=useState(false)
+  const[quizTopic,setQuizTopic]=useState(null)
+  const[quizScore,setQuizScore]=useState(0)
+  const[quizTotal,setQuizTotal]=useState(0)
+  const[currentQuiz,setCurrentQuiz]=useState(null)
+  const[quizMsgId,setQuizMsgId]=useState(null)
+  const[loadingNext,setLoadingNext]=useState(false)
   const bottomRef=useRef(null)
   const fileRef=useRef(null)
   const syllabusRef=useRef(null)
+  const userName=user.user_metadata?.name||user.email.split('@')[0]
 
-  // Load only usage count — NOT messages
   useEffect(()=>{
     supabase.from('usage').select('count').eq('user_id',user.id).eq('date',today()).single().then(({data})=>{if(data)setUsage(data.count)})
   },[])
-
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing,currentQuiz])
 
   async function trackUsage(){
@@ -522,8 +534,7 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       const reader=new FileReader()
       reader.onload=async ev=>{
         try{
-          const arr=new Uint8Array(ev.target.result)
-          let text=''
+          const arr=new Uint8Array(ev.target.result);let text=''
           for(let i=0;i<arr.length;i++){const ch=arr[i];if(ch>=32&&ch<=126)text+=String.fromCharCode(ch);else if(ch===10||ch===13)text+=' '}
           text=text.replace(/\s+/g,' ').trim()
           if(text.length<80){alert('Could not extract text. Use a text-based PDF.');setParsingSyllabus(false);return}
@@ -541,13 +552,17 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   function addUrl(){if(!urlInput.trim())return;setAttachment({type:'url',data:urlInput.trim(),preview:urlInput.trim()});setUrlInput('');setShowAttach(false)}
 
   function buildSystem(){
-    if(aiMode==='general')return 'You are Memora, a helpful and friendly AI assistant. Help with anything — questions, conversations, creative tasks, advice. Be warm and clear. Use markdown formatting where helpful.'
+    // CRITICAL: Direct, concise responses — no greetings, no question repetition
+    const directness = ' IMPORTANT: Never start responses with greetings like "Hi!" or "Sure!". Never repeat the question back to the user. Answer directly and concisely. Give the exact information requested. Do not add filler phrases or unnecessary preambles.'
+
+    if(aiMode==='general')return 'You are Memora, a helpful and friendly AI assistant. Help with anything concisely and directly.' + directness
+
     let sys='You are Memora, a precise AI study assistant for Indian students.'
     if(profile?.board)sys+=' Student course: '+profile.board+'.'
     if(profile?.subject)sys+=' Subject: '+profile.subject+'.'
     if(syllabus){sys+='\n\nCRITICAL: Student uploaded their exact syllabus. Follow ONLY these units:\n'+syllabus+'\nDo not go outside this syllabus.'}
-    else sys+=' Follow the standard curriculum. Always cover ALL units completely, never stop after Unit 1.'
-    sys+=' Formatting: ## for unit headings, **bold** for key terms, numbered lists for steps. Be exam-focused and precise.'
+    else sys+=' Follow the standard curriculum. Cover ALL units completely, never stop after Unit 1.'
+    sys+=' Formatting: ## for unit headings, **bold** for key terms, numbered lists for steps. Be exam-focused.'
     if(mode==='summarize')sys+=' Task: Write a structured unit-wise summary covering ALL units.'
     if(mode==='explain')sys+=' Task: Explain in simple language with real examples. Use numbered steps.'
     if(mode==='flashcard')sys+=' Task: Generate 5 flashcard-style Q&A pairs:\nQ: [question]\nA: [concise answer]\n\n(repeat for each)'
@@ -555,19 +570,20 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
     if(mode==='predict')sys+=' Task: List 5-8 most likely exam questions based on standard exam patterns. Include brief hints for each.'
     if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
     if(weakTopics.length>0)sys+='\n\nWeak topics: '+weakTopics.join(', ')
-    return sys
+    return sys + directness
   }
+
+  const limitHit=usage>=(isPremium?9999:FREE_LIMIT)
 
   async function send(){
     const query=input.trim()
     if(!query||typing)return
-    if(usage>=(isPremium?9999:FREE_LIMIT)){onUpgrade();return}
+    if(limitHit){onUpgrade();return}
     setInput('')
     const attNote=attachment?.type==='url'?' [URL: '+attachment.data+']':''
     const userMsg={id:genId(),role:'user',content:query+attNote}
     setMessages(p=>[...p,userMsg]);setTyping(true)
-    // Save to history in DB
-    supabase.from('messages').insert({user_id:user.id,role:'user',content:userMsg.content}).then(()=>{})
+    supabase.from('messages').insert({user_id:user.id,role:'user',content:userMsg.content}).then(()=>{if(onNewMessage)onNewMessage()})
     const apiMsgs=[...messages,userMsg].slice(-14).map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}))
     const img=attachment?.type==='image'?attachment.data:null
     const url=attachment?.type==='url'?attachment.data:null
@@ -578,13 +594,13 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       const aiId=genId()
       const aiMsg={id:aiId,role:'ai',content:reply}
       setMessages(p=>[...p,aiMsg])
-      supabase.from('messages').insert({user_id:user.id,role:'ai',content:reply}).then(()=>{})
+      supabase.from('messages').insert({user_id:user.id,role:'ai',content:reply}).then(()=>{if(onNewMessage)onNewMessage()})
       if(mode==='quiz'){
         const parsed=parseQuiz(reply)
         if(parsed){setCurrentQuiz(parsed);setQuizMsgId(aiId);if(!quizTopic){setQuizTopic(query);setQuizScore(0);setQuizTotal(0)}}
       }
     }catch(e){
-      const msg=e.message==='RATE_LIMIT'?'⏳ AI is on a short break from high usage. Wait 1-2 minutes and try again.':'Something went wrong. Please try again.'
+      const msg=e.message==='RATE_LIMIT'?'⏳ AI is on a short break. Please wait 1-2 minutes and try again.':'Something went wrong. Please try again.'
       setMessages(p=>[...p,{id:genId(),role:'ai',content:msg}])
     }
     setTyping(false)
@@ -600,7 +616,7 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
 
   async function onNextQuestion(){
     setLoadingNext(true);setCurrentQuiz(null)
-    if(usage>=(isPremium?9999:FREE_LIMIT)){onUpgrade();setLoadingNext(false);return}
+    if(limitHit){onUpgrade();setLoadingNext(false);return}
     try{
       await trackUsage()
       const reply=await callAI([{role:'user',content:'Next quiz question on: '+quizTopic}],buildSystem(),null,null)
@@ -608,88 +624,104 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       setMessages(p=>[...p,{id:aiId,role:'ai',content:reply}])
       const parsed=parseQuiz(reply)
       if(parsed){setCurrentQuiz(parsed);setQuizMsgId(aiId)}
-    }catch(e){setMessages(p=>[...p,{id:genId(),role:'ai',content:e.message==='RATE_LIMIT'?'⏳ Wait 1-2 minutes.':'Error. Try again.'}])}
+    }catch(e){setMessages(p=>[...p,{id:genId(),role:'ai',content:'Could not load next question.'}])}
     setLoadingNext(false)
   }
 
   function endQuiz(){
-    const sc=quizScore,tot=quizTotal
-    setCurrentQuiz(null);setQuizTopic(null);setQuizScore(0);setQuizTotal(0);setMode('chat')
-    if(tot>0){
-      const pct=Math.round(sc/tot*100)
-      setMessages(p=>[...p,{id:genId(),role:'ai',content:`## Quiz Results\n\nScore: **${sc} / ${tot}** (${pct}%)\n\n${pct>=80?'🎉 Excellent! Keep it up.':pct>=60?'👍 Good effort. Review the topics you missed.':'📚 Keep practicing. Focus on weak topics.'}`}])
-    }
+    const summary=`Quiz ended! Score: ${quizScore}/${quizTotal+1}`
+    setMessages(p=>[...p,{id:genId(),role:'ai',content:summary}])
+    setCurrentQuiz(null);setQuizTopic(null);setQuizScore(0);setQuizTotal(0)
   }
 
-  const studyModes=[
-    {id:'chat',label:'Chat',color:t.accent},
-    {id:'summarize',label:'Summarize',color:t.green},
-    {id:'explain',label:'Explain',color:t.orange},
-    {id:'quiz',label:'Quiz',color:t.red},
-    {id:'flashcard',label:'Flashcards',color:'#3B82F6'},
-    {id:'predict',label:'Predict',color:'#EC4899'},
-  ]
-
-  const limitHit=!isPremium&&usage>=FREE_LIMIT
-  const userName=user.user_metadata?.name||user.email.split('@')[0]
+  const suggestions=aiMode==='general'
+    ?["What is quantum computing?","Help me write an email","Explain blockchain simply","What's the latest in AI?"]
+    :["Explain Newton's laws simply","Summarize the water cycle","Quiz me on Photosynthesis","Predict exam questions for Trigonometry"]
 
   return(
-    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      {/* Status bar */}
-      <div style={{padding:'4px 16px',background:t.surface,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,minHeight:30,flexWrap:'wrap',gap:4}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          {aiMode==='study'&&<span style={{fontSize:11,color:t.accent,fontWeight:500}}>{profile?.board?'● '+profile.board+(profile.subject?' · '+profile.subject:''):'● No board set'}</span>}
-          {aiMode==='general'&&<span style={{fontSize:11,color:t.green,fontWeight:500}}>● General AI</span>}
-          {parsingSyllabus&&<span style={{fontSize:11,color:t.orange,animation:'pulse 1.5s infinite'}}>Parsing syllabus...</span>}
-          {syllabus&&!parsingSyllabus&&(<div style={{display:'flex',alignItems:'center',gap:4,color:t.green,fontSize:11,fontWeight:500}}>● {syllabusName} <button onClick={()=>{setSyllabus(null);setSyllabusName(null)}} style={{background:'none',border:'none',color:t.muted,fontSize:11,padding:0,cursor:'pointer',marginLeft:2}}>✕</button></div>)}
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
+      {/* Syllabus badge */}
+      {(syllabus||parsingSyllabus)&&(
+        <div style={{padding:'8px 20px',borderBottom:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+          {parsingSyllabus?<><span style={{fontSize:12,color:t.muted,animation:'pulse 1.5s infinite'}}>⏳ Parsing syllabus PDF...</span></>:
+          <><span style={{fontSize:12,color:t.green}}>✓ Syllabus loaded:</span><span style={{fontSize:12,color:t.muted}}>{syllabusName}</span><button onClick={()=>{setSyllabus(null);setSyllabusName(null)}} style={{background:'none',border:'none',color:t.red,fontSize:12,padding:0,marginLeft:4}}>✕</button></>}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {isPremium?<span style={{fontSize:11,color:t.orange,fontWeight:600}}>⭐ Premium</span>:(
-            <><div style={{width:60,height:3,background:t.border,borderRadius:2,overflow:'hidden'}}><div style={{width:Math.min((usage/FREE_LIMIT)*100,100)+'%',height:'100%',background:limitHit?t.red:t.accent,borderRadius:2}}/></div><span style={{fontSize:11,color:limitHit?t.red:t.muted}}>{FREE_LIMIT-usage} left</span><button onClick={onUpgrade} style={{fontSize:10,background:'none',border:`1px solid ${t.border}`,borderRadius:6,color:t.muted,padding:'1px 7px',fontWeight:500}}>⭐ Pro</button></>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Messages */}
-      <div style={{flex:1,overflowY:'auto',padding:'24px 20px'}}>
+      <div style={{flex:1,overflowY:'auto',padding:'24px 0'}}>
         {messages.length===0&&(
-          <div style={{textAlign:'center',padding:'52px 20px',color:t.muted}} className="fu">
-            <div style={{fontSize:40,marginBottom:12}}>{aiMode==='general'?'💬':'🧠'}</div>
-            <div style={{fontSize:19,fontWeight:700,color:t.text,marginBottom:8,fontFamily:"'Syne',sans-serif"}}>Hi {userName}!</div>
-            <div style={{fontSize:14,lineHeight:1.7,marginBottom:28,maxWidth:440,margin:'0 auto 28px',color:t.muted}}>
-              {aiMode==='general'?'Ask me anything. I can help with any topic, question, or just have a conversation.':'Ask anything from your syllabus. I\'ll explain, summarize, quiz you, generate flashcards, or predict exam questions.'}
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',padding:'0 20px',textAlign:'center'}} className="fu">
+            <div style={{fontSize:32,marginBottom:16}}>🧠</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text,marginBottom:8}}>
+              Hi, {userName.split(' ')[0]}!
             </div>
-            <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
-              {(aiMode==='general'?["Explain quantum entanglement simply","Help me write a professional email","What is blockchain?"]:["Explain Newton's 3 laws","Quiz me on Photosynthesis","Predict exam questions for Trigonometry","Give me flashcards for Respiration"]).map(s=>(<button key={s} onClick={()=>setInput(s)} style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>{s}</button>))}
+            <div style={{fontSize:15,color:t.muted,marginBottom:32,maxWidth:400}}>
+              {aiMode==='study'?'Ask anything from your syllabus. I\'ll explain, summarize, quiz you, or predict exam questions.':'Ask me anything — I\'m here to help.'}
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',maxWidth:560}}>
+              {suggestions.map((s,i)=>(
+                <button key={i} onClick={()=>setInput(s)} style={{padding:'8px 16px',borderRadius:20,border:`1px solid ${t.border}`,background:t.card,color:t.muted,fontSize:13,fontWeight:500,transition:'border-color 0.15s'}}
+                  onMouseEnter={e=>e.target.style.borderColor='#8B5CF6'}
+                  onMouseLeave={e=>e.target.style.borderColor=t.border}>
+                  {s}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {messages.map(m=>(
-          <div key={m.id} style={{display:'flex',gap:10,marginBottom:20,flexDirection:m.role==='user'?'row-reverse':'row',alignItems:'flex-start'}} className="msg">
+          <div key={m.id} className="msg" style={{
+            display:'flex',
+            flexDirection:m.role==='user'?'row-reverse':'row',
+            gap:12,
+            padding:'6px 20px',
+            maxWidth:760,
+            margin:'0 auto',
+            width:'100%',
+            alignItems:'flex-start',
+          }}>
+            {/* Avatar */}
             {m.role==='ai'&&(
-              <div style={{width:30,height:30,borderRadius:'50%',background:aiMode==='general'?t.green:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,marginTop:2}}>{aiMode==='general'?'💬':'🧠'}</div>
+              <div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,marginTop:2}}>🧠</div>
             )}
             {m.role==='user'&&(
-              <div style={{width:30,height:30,borderRadius:'50%',background:dark?'#2A2A2A':'#E8E8E8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,color:t.text,marginTop:2}}>{userName.slice(0,1).toUpperCase()}</div>
+              <div style={{width:32,height:32,borderRadius:6,background:t.card2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,color:t.text,marginTop:2,border:`1px solid ${t.border}`}}>{userName.slice(0,1).toUpperCase()}</div>
             )}
-            <div style={{maxWidth:'80%',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
-              {!(m.role==='ai'&&m.id===quizMsgId&&currentQuiz)&&(
-                <div style={{padding:'11px 15px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?dark?'#1E1E1E':'#F0F0F0':t.card,border:m.role==='ai'?`1px solid ${t.border}`:'none',color:m.role==='user'?t.text:t.text,fontSize:14,lineHeight:1.7}}>
-                  {m.role==='ai'?<MD content={m.content} dark={dark}/>:m.content}
+
+            {/* Message content */}
+            <div style={{flex:1,maxWidth:'calc(100% - 44px)',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
+              {m.role==='user'?(
+                <div style={{padding:'10px 16px',borderRadius:12,background:t.userBubble,color:t.text,fontSize:15,lineHeight:1.6,maxWidth:'85%'}}>
+                  {m.content}
                 </div>
+              ):(
+                <>
+                  {!(m.role==='ai'&&m.id===quizMsgId&&currentQuiz)&&(
+                    <div style={{fontSize:15,color:t.text,lineHeight:1.75,width:'100%'}}>
+                      <MD content={m.content} dark={dark}/>
+                    </div>
+                  )}
+                  {m.role==='ai'&&m.id===quizMsgId&&currentQuiz&&(
+                    <QuizCard quiz={currentQuiz} onAnswer={onQuizAnswer} onNext={onNextQuestion} onEnd={endQuiz} score={quizScore} total={quizTotal} dark={dark}/>
+                  )}
+                  <button onClick={()=>onSaveNote(m.content)} style={{fontSize:12,color:t.muted,background:'none',border:'none',padding:'5px 0 0',cursor:'pointer',textAlign:'left',marginTop:2}}
+                    onMouseEnter={e=>e.target.style.color=t.accent}
+                    onMouseLeave={e=>e.target.style.color=t.muted}>
+                    + Save as note
+                  </button>
+                </>
               )}
-              {m.role==='ai'&&m.id===quizMsgId&&currentQuiz&&<QuizCard quiz={currentQuiz} onAnswer={onQuizAnswer} onNext={onNextQuestion} onEnd={endQuiz} score={quizScore} total={quizTotal} dark={dark}/>}
-              {m.role==='ai'&&<button onClick={()=>onSaveNote(m.content)} style={{fontSize:11,color:t.accent,background:'none',border:'none',padding:'4px 0 0',cursor:'pointer',textAlign:'left'}}>＋ Save as note</button>}
             </div>
           </div>
         ))}
 
         {(typing||loadingNext)&&(
-          <div style={{display:'flex',gap:10,marginBottom:20,alignItems:'flex-start'}}>
-            <div style={{width:30,height:30,borderRadius:'50%',background:aiMode==='general'?t.green:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{aiMode==='general'?'💬':'🧠'}</div>
-            <div style={{padding:'11px 15px',background:t.card,border:`1px solid ${t.border}`,borderRadius:'16px 16px 16px 4px',display:'flex',gap:5,alignItems:'center'}}>
-              {[0,1,2].map(i=><span key={i} style={{width:6,height:6,borderRadius:'50%',background:t.muted,display:'inline-block',animation:'bounce 1.1s ease infinite',animationDelay:i*0.18+'s'}}/>)}
+          <div style={{display:'flex',gap:12,padding:'6px 20px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
+            <div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>🧠</div>
+            <div style={{padding:'12px 16px',display:'flex',gap:5,alignItems:'center',marginTop:2}}>
+              {[0,1,2].map(i=><span key={i} style={{width:7,height:7,borderRadius:'50%',background:t.muted,display:'inline-block',animation:'bounce 1.1s ease infinite',animationDelay:i*0.18+'s'}}/>)}
             </div>
           </div>
         )}
@@ -697,83 +729,102 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
       </div>
 
       {/* Attachment preview */}
-      {attachment&&(<div style={{padding:'5px 16px',borderTop:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}><span style={{fontSize:12,color:t.accent}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,50)}</span><button onClick={()=>setAttachment(null)} style={{background:'none',border:'none',color:t.red,fontSize:14,padding:0}}>✕</button></div>)}
+      {attachment&&(
+        <div style={{padding:'6px 20px',borderTop:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+          <span style={{fontSize:13,color:t.accent}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,60)}</span>
+          <button onClick={()=>setAttachment(null)} style={{background:'none',border:'none',color:t.red,fontSize:15,padding:0}}>✕</button>
+        </div>
+      )}
 
       {/* Attach panel */}
-      {showAttach&&(<div style={{padding:'10px 16px',borderTop:`1px solid ${t.border}`,background:t.surface,flexShrink:0}}>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} placeholder="Paste URL..." style={{flex:1,minWidth:140,padding:'8px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:13}} onKeyDown={e=>e.key==='Enter'&&addUrl()}/>
-          <button onClick={addUrl} style={{padding:'8px 12px',borderRadius:8,border:'none',background:t.accent,color:'#fff',fontSize:12,fontWeight:600}}>Add URL</button>
-          <button onClick={()=>fileRef.current.click()} style={{padding:'8px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>📷 Image</button>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
-          <button onClick={()=>syllabusRef.current.click()} style={{padding:'8px 12px',borderRadius:8,border:`1px solid ${t.green}50`,background:`${t.green}10`,color:t.green,fontSize:12,fontWeight:500}}>📋 Syllabus PDF</button>
-          <input ref={syllabusRef} type="file" accept=".pdf" onChange={handleSyllabusPDF} style={{display:'none'}}/>
-          <button onClick={()=>setShowAttach(false)} style={{background:'none',border:'none',color:t.muted,fontSize:20,padding:0,lineHeight:1}}>✕</button>
+      {showAttach&&(
+        <div style={{padding:'12px 20px',borderTop:`1px solid ${t.border}`,background:t.surface,flexShrink:0}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input value={urlInput} onChange={e=>setUrlInput(e.target.value)} placeholder="Paste a URL..." style={{flex:1,minWidth:160,padding:'9px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:13}} onKeyDown={e=>e.key==='Enter'&&addUrl()}/>
+            <button onClick={addUrl} style={{padding:'9px 14px',borderRadius:8,border:'none',background:t.accent,color:'#fff',fontSize:12,fontWeight:600}}>Add</button>
+            <button onClick={()=>fileRef.current.click()} style={{padding:'9px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12}}>📷 Image</button>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:'none'}}/>
+            <button onClick={()=>syllabusRef.current.click()} style={{padding:'9px 14px',borderRadius:8,border:`1px solid ${t.green}50`,background:`${t.green}10`,color:t.green,fontSize:12,fontWeight:500}}>📋 Syllabus PDF</button>
+            <input ref={syllabusRef} type="file" accept=".pdf" onChange={handleSyllabusPDF} style={{display:'none'}}/>
+            <button onClick={()=>setShowAttach(false)} style={{background:'none',border:'none',color:t.muted,fontSize:20,padding:0,lineHeight:1}}>✕</button>
+          </div>
         </div>
-      </div>)}
+      )}
 
-      {/* Input */}
-      <div style={{padding:'12px 16px 16px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
-        {limitHit&&(<div style={{fontSize:13,color:t.red,background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:8,padding:'8px 14px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>Daily limit reached. <span style={{textDecoration:'underline',fontWeight:700}}>Upgrade to Premium ⭐</span></div>)}
-        {aiMode==='study'&&(
-          <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
-            {studyModes.map(m=>(<button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'4px 12px',borderRadius:6,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?m.color+'15':'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400}}>{m.label}</button>))}
+      {/* Input area */}
+      <div style={{padding:'12px 20px 18px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
+        {limitHit&&(
+          <div style={{fontSize:13,color:t.red,background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:8,padding:'9px 16px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>
+            Daily limit reached. <span style={{textDecoration:'underline',fontWeight:700}}>Upgrade to Premium ⭐</span>
           </div>
         )}
-        <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
-          <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'10px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:showAttach?t.accent:t.muted,fontSize:18,flexShrink:0,lineHeight:1}}>📎</button>
-          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode==='quiz'?'Enter topic to quiz (e.g. Photosynthesis)...':aiMode==='general'?'Ask me anything...':'Ask anything from your syllabus...'} disabled={limitHit} rows={1} style={{flex:1,padding:'10px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:14,resize:'none',maxHeight:100,lineHeight:1.5}} onInput={e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,100)+'px'}}/>
-          <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'10px 18px',borderRadius:8,border:'none',background:typing||!input.trim()||limitHit?t.border:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.45:1}}>Send</button>
+        {aiMode==='study'&&(
+          <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+            {studyModes.map(m=>(
+              <button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'5px 13px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?m.color+'18':'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400}}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{display:'flex',gap:8,alignItems:'flex-end',background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'8px 8px 8px 12px'}}>
+          <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'6px 8px',borderRadius:6,border:'none',background:'transparent',color:showAttach?t.accent:t.muted,fontSize:18,flexShrink:0,lineHeight:1}}>📎</button>
+          <textarea
+            value={input}
+            onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}
+            placeholder={mode==='quiz'?'Enter a topic to quiz on...':aiMode==='general'?'Ask me anything...':'Ask anything from your syllabus...'}
+            disabled={limitHit}
+            rows={1}
+            style={{flex:1,padding:'6px 0',border:'none',background:'transparent',color:t.text,fontSize:15,resize:'none',maxHeight:120,lineHeight:1.6}}
+            onInput={e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'}}
+          />
+          <button
+            onClick={send}
+            disabled={typing||!input.trim()||limitHit}
+            style={{padding:'8px 16px',borderRadius:8,border:'none',background:typing||!input.trim()||limitHit?t.card2:'#8B5CF6',color:typing||!input.trim()||limitHit?t.muted:'#fff',fontSize:14,fontWeight:600,flexShrink:0,opacity:typing||!input.trim()||limitHit?0.5:1}}
+          >↑</button>
         </div>
-        <div style={{fontSize:11,color:t.muted,marginTop:5,textAlign:'center'}}>Enter to send · Shift+Enter for new line</div>
+        <div style={{fontSize:11,color:t.muted,marginTop:6,textAlign:'center'}}>Enter to send · Shift+Enter for new line{aiMode==='study'?' · Upload syllabus PDF for exact answers':''}</div>
       </div>
     </div>
   )
 }
 
-// ── History Tab ────────────────────────────────────────────────────────────
-function HistoryTab({user,dark}){
+// ── Conversation View (read-only history) ──────────────────────────────────
+function ConversationView({conversation,dark,onBack}){
   const t=T(dark)
-  const [messages,setMessages]=useState([])
-  const [loading,setLoading]=useState(true)
-  const [search,setSearch]=useState('')
-
-  useEffect(()=>{
-    supabase.from('messages').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).limit(200).then(({data})=>{
-      if(data)setMessages(data)
-      setLoading(false)
-    })
-  },[])
-
-  const filtered=search.trim()?messages.filter(m=>m.content.toLowerCase().includes(search.toLowerCase())):messages
-
-  // Group by date
-  const groups={}
-  filtered.forEach(m=>{
-    const d=m.created_at?m.created_at.split('T')[0]:'unknown'
-    if(!groups[d])groups[d]=[]
-    groups[d].push(m)
-  })
-
+  const bottomRef=useRef(null)
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'instant'})},[conversation])
   return(
-    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div style={{padding:'12px 16px',borderBottom:`1px solid ${t.border}`,flexShrink:0}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search chat history..." style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card,color:t.text,fontSize:14}}/>
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
+      <div style={{padding:'14px 20px',borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',gap:12,flexShrink:0,background:t.bg}}>
+        <button onClick={onBack} style={{padding:'6px 10px',borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13,fontWeight:500}}>← Back</button>
+        <div style={{flex:1,overflow:'hidden'}}>
+          <div style={{fontWeight:600,fontSize:14,color:t.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{conversation.title}</div>
+          <div style={{fontSize:11,color:t.muted}}>{new Date(conversation.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div>
+        </div>
+        <div style={{fontSize:11,color:t.muted,background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:'3px 10px'}}>{conversation.messages.length} messages</div>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'14px 16px'}}>
-        {loading&&<div style={{textAlign:'center',padding:40,color:t.muted,animation:'pulse 1.5s infinite'}}>Loading history...</div>}
-        {!loading&&filtered.length===0&&<div style={{textAlign:'center',padding:'50px 16px',color:t.muted}}><div style={{fontSize:32,marginBottom:10}}>🕐</div><div style={{fontSize:15,fontWeight:600,color:t.text,marginBottom:4}}>No history</div><div style={{fontSize:13}}>{search?'No messages match your search.':'Your chat history will appear here.'}</div></div>}
-        {Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,msgs])=>(
-          <div key={date} style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:t.muted,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:10,paddingBottom:6,borderBottom:`1px solid ${t.border}`}}>{date}</div>
-            {msgs.map((m,i)=>(
-              <div key={i} style={{display:'flex',gap:8,marginBottom:8,padding:'8px 12px',background:m.role==='user'?'transparent':t.card,border:`1px solid ${m.role==='user'?'transparent':t.border}`,borderRadius:8}}>
-                <span style={{fontSize:12,color:m.role==='user'?t.muted:'#8B5CF6',fontWeight:600,flexShrink:0,marginTop:1}}>{m.role==='user'?'You':'AI'}</span>
-                <span style={{fontSize:13,color:t.muted,lineHeight:1.6,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.content.replace(/[#*`_]/g,'').slice(0,120)}</span>
-              </div>
-            ))}
+      <div style={{flex:1,overflowY:'auto',padding:'24px 0'}}>
+        {conversation.messages.map((m,i)=>(
+          <div key={i} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:12,padding:'6px 20px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
+            {m.role==='ai'&&(
+              <div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,marginTop:2}}>🧠</div>
+            )}
+            {m.role==='user'&&(
+              <div style={{width:32,height:32,borderRadius:6,background:t.card2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,flexShrink:0,color:t.text,marginTop:2,border:`1px solid ${t.border}`}}>U</div>
+            )}
+            <div style={{flex:1,maxWidth:'calc(100% - 44px)',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
+              {m.role==='user'?(
+                <div style={{padding:'10px 16px',borderRadius:12,background:t.userBubble,color:t.text,fontSize:15,lineHeight:1.6,maxWidth:'85%'}}>{m.content}</div>
+              ):(
+                <div style={{fontSize:15,color:t.text,lineHeight:1.75,width:'100%'}}><MD content={m.content} dark={dark}/></div>
+              )}
+            </div>
           </div>
         ))}
+        <div ref={bottomRef}/>
       </div>
     </div>
   )
@@ -782,38 +833,34 @@ function HistoryTab({user,dark}){
 // ── Notes Tab ──────────────────────────────────────────────────────────────
 function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
   const t=T(dark)
-  const [filter,setFilter]=useState('')
-  const [showModal,setShowModal]=useState(false)
-  const [form,setForm]=useState({title:'',body:'',tag:''})
-  const [loading,setLoading]=useState(true)
-  const [expanded,setExpanded]=useState(null)
-
+  const[filter,setFilter]=useState('')
+  const[showModal,setShowModal]=useState(false)
+  const[form,setForm]=useState({title:'',body:'',tag:''})
+  const[loading,setLoading]=useState(true)
+  const[expanded,setExpanded]=useState(null)
   useEffect(()=>{supabase.from('notes').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(({data})=>{if(data)setNotes(data);setLoading(false)})},[])
   useEffect(()=>{if(prefill){setForm({title:'AI Response',body:prefill.slice(0,900),tag:'ai'});setShowModal(true);clearPrefill()}},[prefill])
-
   async function save(){
     if(!form.title.trim()||!form.body.trim())return
     const{data,error}=await supabase.from('notes').insert({user_id:user.id,title:form.title.trim(),body:form.body.trim(),tag:form.tag.trim()||'general'}).select().single()
     if(!error&&data){setNotes(p=>[data,...p]);setShowModal(false);setForm({title:'',body:'',tag:''})}
   }
   async function del(id){await supabase.from('notes').delete().eq('id',id);setNotes(p=>p.filter(n=>n.id!==id))}
-
   const filtered=filter.trim()?notes.filter(n=>n.title.toLowerCase().includes(filter.toLowerCase())||n.body.toLowerCase().includes(filter.toLowerCase())):notes
   const fld={width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:13}
-
   return(
-    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div style={{padding:'12px 16px',borderBottom:`1px solid ${t.border}`,flexShrink:0,display:'flex',gap:8}}>
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
+      <div style={{padding:'14px 20px',borderBottom:`1px solid ${t.border}`,flexShrink:0,display:'flex',gap:8,background:t.bg}}>
         <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search notes..." style={{...fld,flex:1,padding:'9px 12px'}}/>
-        <button onClick={()=>{setForm({title:'',body:'',tag:''});setShowModal(true)}} style={{padding:'9px 16px',borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>＋ Add</button>
+        <button onClick={()=>{setForm({title:'',body:'',tag:''});setShowModal(true)}} style={{padding:'9px 18px',borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>＋ New Note</button>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'14px 16px'}}>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
         {loading&&<div style={{textAlign:'center',padding:40,color:t.muted,animation:'pulse 1.5s infinite'}}>Loading...</div>}
-        {!loading&&filtered.length===0&&<div style={{textAlign:'center',padding:'50px 16px',color:t.muted}}><div style={{fontSize:34,marginBottom:10}}>📝</div><div style={{fontSize:14,fontWeight:600,color:t.text,marginBottom:4}}>No notes yet</div><div style={{fontSize:13}}>{filter?'No matching notes.':'Save AI responses or add your own notes.'}</div></div>}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {!loading&&filtered.length===0&&<div style={{textAlign:'center',padding:'60px 20px',color:t.muted}}><div style={{fontSize:34,marginBottom:10}}>📝</div><div style={{fontSize:14,fontWeight:600,color:t.text,marginBottom:4}}>No notes yet</div><div style={{fontSize:13}}>{filter?'No matching notes.':'Save AI responses or add your own notes.'}</div></div>}
+        <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:720,margin:'0 auto'}}>
           {filtered.map(n=>(
             <div key={n.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,overflow:'hidden'}}>
-              <div style={{padding:'12px 14px',cursor:'pointer'}} onClick={()=>setExpanded(expanded===n.id?null:n.id)}>
+              <div style={{padding:'13px 16px',cursor:'pointer'}} onClick={()=>setExpanded(expanded===n.id?null:n.id)}>
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:600,fontSize:14,color:t.text,marginBottom:3}}>{n.title}</div>
@@ -826,7 +873,7 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
                   </div>
                 </div>
               </div>
-              {expanded===n.id&&<div style={{padding:'0 14px 14px',borderTop:`1px solid ${t.border}`}}><div style={{paddingTop:12}}><MD content={n.body} dark={dark}/></div></div>}
+              {expanded===n.id&&<div style={{padding:'0 16px 14px',borderTop:`1px solid ${t.border}`}}><div style={{paddingTop:12}}><MD content={n.body} dark={dark}/></div></div>}
             </div>
           ))}
         </div>
@@ -835,9 +882,9 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
           <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:24,width:'100%',maxWidth:440}} className="fu">
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,marginBottom:18,color:t.text}}>Save Note</div>
-            <div style={{marginBottom:12}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:500}}>TITLE</label><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Note title..." style={fld}/></div>
-            <div style={{marginBottom:12}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:500}}>TAG</label><input value={form.tag} onChange={e=>setForm({...form,tag:e.target.value})} placeholder="e.g. math, physics..." style={fld}/></div>
-            <div style={{marginBottom:20}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:500}}>CONTENT</label><textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note... (supports **bold**, ## headings, - lists)" rows={6} style={{...fld,resize:'vertical',fontFamily:'monospace',fontSize:12}}/></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Title</label><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Note title..." style={fld}/></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Tag</label><input value={form.tag} onChange={e=>setForm({...form,tag:e.target.value})} placeholder="e.g. math, physics..." style={fld}/></div>
+            <div style={{marginBottom:20}}><label style={{fontSize:11,color:t.muted,display:'block',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Content</label><textarea value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Write your note..." rows={6} style={{...fld,resize:'vertical',fontFamily:'monospace',fontSize:12}}/></div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setShowModal(false)} style={{padding:'9px 16px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Cancel</button>
               <button onClick={save} style={{padding:'9px 20px',borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600}}>Save</button>
@@ -854,38 +901,34 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,notes,dark,onUpgrade
   const t=T(dark)
   async function removeWeak(topic){const u=weakTopics.filter(x=>x!==topic);setWeakTopics(u);await supabase.from('profiles').update({weak_topics:u}).eq('user_id',user.id)}
   return(
-    <div style={{flex:1,overflowY:'auto',padding:16}}>
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 16px',marginBottom:12}}>
-        <div style={{fontSize:11,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Profile</div>
-        {profile?.board?<><div style={{fontSize:14,fontWeight:700,marginBottom:4,color:t.text}}>{profile.board}</div>{profile.subject&&<div style={{fontSize:13,color:t.muted}}>{profile.subject}</div>}</>:<div style={{fontSize:13,color:t.muted}}>No board set.</div>}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-        {[['📝',notes.length,'Notes Saved'],['⚠️',weakTopics.length,'Weak Topics']].map(([ic,val,label],i)=>(
-          <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px',textAlign:'center'}}>
-            <div style={{fontSize:22,marginBottom:4}}>{ic}</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:t.accent,marginBottom:2}}>{val}</div>
-            <div style={{fontSize:11,color:t.muted}}>{label}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 16px',marginBottom:12}}>
-        <div style={{fontSize:11,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Weak Topics</div>
-        {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Quiz wrong answers appear here automatically.</div>:(
-          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {weakTopics.map(topic=>(<div key={topic} style={{display:'flex',alignItems:'center',gap:6,background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:16,padding:'4px 10px'}}><span style={{fontSize:12,color:t.red,fontWeight:500}}>{topic}</span><button onClick={()=>removeWeak(topic)} style={{background:'none',border:'none',color:t.red,fontSize:12,padding:0,cursor:'pointer'}}>✕</button></div>))}
-          </div>
-        )}
-      </div>
-      {!isPremium&&(
-        <div style={{background:t.card,border:'1px solid rgba(139,92,246,0.2)',borderRadius:10,padding:'16px',marginBottom:12,cursor:'pointer'}} onClick={onUpgrade}>
-          <div style={{fontSize:11,color:t.accent,marginBottom:6,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>⭐ Upgrade to Premium</div>
-          <div style={{fontSize:13,color:t.muted,lineHeight:1.6,marginBottom:10}}>Unlimited AI messages, quizzes, and all features for ₹99/month.</div>
-          <div style={{padding:'8px 16px',borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:13,fontWeight:600,display:'inline-block'}}>Upgrade Now →</div>
+    <div style={{flex:1,overflowY:'auto',padding:'20px',background:t.bg}}>
+      <div style={{maxWidth:600,margin:'0 auto'}}>
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 18px',marginBottom:12}}>
+          <div style={{fontSize:11,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Profile</div>
+          {profile?.board?<><div style={{fontSize:15,fontWeight:700,marginBottom:4,color:t.text}}>{profile.board}</div>{profile.subject&&<div style={{fontSize:13,color:t.muted}}>{profile.subject}</div>}</>:<div style={{fontSize:13,color:t.muted}}>No board set.</div>}
         </div>
-      )}
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 16px'}}>
-        <div style={{fontSize:11,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Study Tips</div>
-        {['Upload your syllabus PDF for exact unit answers','Use Quiz mode — weak topics tracked automatically','Use Predict mode before exams for likely questions','Save AI answers as notes for quick revision','Use Flashcard mode to memorize key concepts'].map((tip,i,arr)=>(<div key={i} style={{fontSize:13,color:t.muted,padding:'7px 0',borderBottom:i<arr.length-1?`1px solid ${t.border}`:'none',lineHeight:1.5}}>• {tip}</div>))}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          {[['📝',notes.length,'Notes Saved'],['⚠️',weakTopics.length,'Weak Topics']].map(([ic,val,label],i)=>(
+            <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'16px',textAlign:'center'}}>
+              <div style={{fontSize:22,marginBottom:6}}>{ic}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:t.accent,marginBottom:2}}>{val}</div>
+              <div style={{fontSize:12,color:t.muted}}>{label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 18px',marginBottom:12}}>
+          <div style={{fontSize:11,color:t.muted,marginBottom:10,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Weak Topics</div>
+          {weakTopics.length===0?<div style={{fontSize:13,color:t.muted}}>No weak topics yet. Wrong quiz answers appear here automatically.</div>:(
+            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+              {weakTopics.map(topic=>(
+                <div key={topic} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:dark?'rgba(220,38,38,0.08)':'rgba(220,38,38,0.05)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:20}}>
+                  <span style={{fontSize:12,color:t.red,fontWeight:500}}>{topic}</span>
+                  <button onClick={()=>removeWeak(topic)} style={{background:'none',border:'none',color:t.red,fontSize:12,padding:0,opacity:0.6}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -894,34 +937,34 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,notes,dark,onUpgrade
 // ── Search Tab ─────────────────────────────────────────────────────────────
 function SearchTab({notes,dark}){
   const t=T(dark)
-  const [q,setQ]=useState('')
+  const[q,setQ]=useState('')
   function hl(text,query){
-    if(!query.trim())return text
+    if(!query)return text
     const parts=text.split(new RegExp('('+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'))
     return parts.map((p,i)=>p.toLowerCase()===query.toLowerCase()?<mark key={i} style={{background:dark?'rgba(139,92,246,0.2)':'rgba(139,92,246,0.12)',color:'#8B5CF6',borderRadius:2,padding:'0 2px'}}>{p}</mark>:p)
   }
   const results=q.trim()?notes.filter(n=>n.title.toLowerCase().includes(q.toLowerCase())||n.body.toLowerCase().includes(q.toLowerCase())).map(n=>({title:n.title,snippet:n.body.replace(/[#*`_]/g,'').slice(0,180),tag:n.tag})):[]
   return(
-    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div style={{padding:'12px 16px',borderBottom:`1px solid ${t.border}`,flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:'10px 14px'}}>
-          <span style={{fontSize:16,opacity:0.5}}>🔍</span>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search all your notes..." autoFocus style={{flex:1,background:'none',border:'none',outline:'none',color:t.text,fontSize:14}}/>
-          {q&&<button onClick={()=>setQ('')} style={{background:'none',border:'none',color:t.muted,fontSize:16,padding:0,lineHeight:1}}>✕</button>}
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
+      <div style={{padding:'14px 20px',borderBottom:`1px solid ${t.border}`,flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'10px 16px',maxWidth:600}}>
+          <span style={{fontSize:16,opacity:0.4}}>🔍</span>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search all notes..." autoFocus style={{flex:1,background:'none',border:'none',outline:'none',color:t.text,fontSize:15}}/>
+          {q&&<button onClick={()=>setQ('')} style={{background:'none',border:'none',color:t.muted,fontSize:16,padding:0}}>✕</button>}
         </div>
-        {q&&<div style={{fontSize:12,color:t.muted,marginTop:7}}>{results.length} result{results.length!==1?'s':''}</div>}
+        {q&&<div style={{fontSize:12,color:t.muted,marginTop:8}}>{results.length} result{results.length!==1?'s':''}</div>}
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'14px 16px'}}>
-        {!q&&<div style={{textAlign:'center',padding:'60px 16px',color:t.muted}}><div style={{fontSize:36,marginBottom:12}}>🔍</div><div style={{fontSize:15,fontWeight:600,color:t.text,marginBottom:4}}>Search your notes</div><div style={{fontSize:13}}>Find anything across all saved notes.</div></div>}
-        {q&&results.length===0&&<div style={{textAlign:'center',padding:'50px 16px',color:t.muted}}><div style={{fontSize:13}}>No results for "<strong style={{color:t.text}}>{q}</strong>"</div></div>}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        {!q&&<div style={{textAlign:'center',padding:'60px 20px',color:t.muted}}><div style={{fontSize:36,marginBottom:12}}>🔍</div><div style={{fontSize:15,fontWeight:600,color:t.text,marginBottom:4}}>Search your notes</div><div style={{fontSize:13}}>Find anything across all saved notes.</div></div>}
+        {q&&results.length===0&&<div style={{textAlign:'center',padding:'50px 20px',color:t.muted,fontSize:13}}>No results for "<strong style={{color:t.text}}>{q}</strong>"</div>}
+        <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:600}}>
           {results.map((r,i)=>(
-            <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:'12px 14px'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
-                <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:t.card2,color:t.muted,fontWeight:500}}>{r.tag}</span>
+            <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'14px 16px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                <span style={{fontSize:11,padding:'2px 9px',borderRadius:20,background:t.card2,color:t.muted,fontWeight:500}}>{r.tag}</span>
               </div>
-              <div style={{fontWeight:600,fontSize:14,marginBottom:5,color:t.text,lineHeight:1.4}}>{hl(r.title,q)}</div>
-              <div style={{fontSize:13,color:t.muted,lineHeight:1.6}}>{hl(r.snippet,q)}</div>
+              <div style={{fontWeight:600,fontSize:14,marginBottom:6,color:t.text,lineHeight:1.4}}>{hl(r.title,q)}</div>
+              <div style={{fontSize:13,color:t.muted,lineHeight:1.65}}>{hl(r.snippet,q)}</div>
             </div>
           ))}
         </div>
@@ -931,55 +974,113 @@ function SearchTab({notes,dark}){
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremium,aiMode,setAiMode}){
+function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremium,aiMode,setAiMode,conversations,convLoading,onSelectConv,selectedConvId,onNewChat}){
   const t=T(dark)
   const userName=user.user_metadata?.name||user.email.split('@')[0]
-  const navItems=[
-    {id:'chat',icon:'💬',label:'Chat'},
-    {id:'history',icon:'🕐',label:'History'},
+  const[search,setSearch]=useState('')
+  const[searchFocused,setSearchFocused]=useState(false)
+
+  const filtered=search.trim()
+    ?conversations.filter(c=>c.title.toLowerCase().includes(search.toLowerCase()))
+    :conversations
+
+  // Group conversations by date label
+  const grouped={}
+  filtered.forEach(c=>{
+    const label=getDateLabel(c.date)
+    if(!grouped[label])grouped[label]=[]
+    grouped[label].push(c)
+  })
+  const labelOrder=['Today','Yesterday','Previous 7 Days']
+  const sortedLabels=[
+    ...labelOrder.filter(l=>grouped[l]),
+    ...Object.keys(grouped).filter(l=>!labelOrder.includes(l)).sort((a,b)=>b.localeCompare(a))
+  ]
+
+  const bottomNavItems=[
     {id:'notes',icon:'📝',label:'Notes',badge:notes.length},
     {id:'progress',icon:'📊',label:'Progress'},
     {id:'search',icon:'🔍',label:'Search'},
   ]
+
   return(
-    <div style={{width:220,height:'100%',background:t.surface,borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
-      <div style={{padding:'18px 16px 14px',borderBottom:`1px solid ${t.border}`}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:t.text,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
-        <div style={{fontSize:11,color:t.muted,marginTop:2}}>AI Study Companion</div>
-      </div>
-      {/* AI Mode */}
-      <div style={{padding:'10px 10px 6px'}}>
-        <div style={{fontSize:10,color:t.muted,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:5,paddingLeft:3}}>Mode</div>
+    <div style={{width:260,height:'100%',background:t.sidebar,borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
+      {/* Top: Logo + New Chat */}
+      <div style={{padding:'14px 12px 10px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:t.text,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
+          <button onClick={onNewChat} title="New chat" style={{width:32,height:32,borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}
+            onMouseEnter={e=>{e.currentTarget.style.background=t.hoverNav;e.currentTarget.style.color=t.text}}
+            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=t.muted}}>
+            ✏️
+          </button>
+        </div>
+        {/* AI Mode toggle */}
         <div style={{display:'flex',background:t.card,borderRadius:7,padding:2,border:`1px solid ${t.border}`}}>
           <button onClick={()=>setAiMode('study')} style={{flex:1,padding:'6px 0',borderRadius:5,border:'none',fontSize:11,fontWeight:aiMode==='study'?700:400,background:aiMode==='study'?'#8B5CF6':'transparent',color:aiMode==='study'?'#fff':t.muted}}>📚 Study</button>
           <button onClick={()=>setAiMode('general')} style={{flex:1,padding:'6px 0',borderRadius:5,border:'none',fontSize:11,fontWeight:aiMode==='general'?700:400,background:aiMode==='general'?t.green:'transparent',color:aiMode==='general'?'#fff':t.muted}}>💬 General</button>
         </div>
       </div>
-      {/* Nav */}
-      <div style={{flex:1,padding:'6px 8px',overflowY:'auto'}}>
-        {navItems.map(item=>(
-          <button key={item.id} onClick={()=>setTab(item.id)} style={{width:'100%',padding:'9px 11px',borderRadius:7,border:'none',background:tab===item.id?dark?'#1E1E1E':'#E8E8E8':'transparent',color:tab===item.id?t.text:t.muted,fontSize:13,fontWeight:tab===item.id?600:400,display:'flex',alignItems:'center',gap:9,marginBottom:2,textAlign:'left'}}>
-            <span style={{fontSize:15,width:18,textAlign:'center'}}>{item.icon}</span>
+
+      {/* Search conversations */}
+      <div style={{padding:'0 10px 6px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,background:t.card,border:`1px solid ${searchFocused?'#8B5CF6':t.border}`,borderRadius:7,padding:'6px 10px',transition:'border-color 0.15s'}}>
+          <span style={{fontSize:12,opacity:0.45}}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} onFocus={()=>setSearchFocused(true)} onBlur={()=>setSearchFocused(false)} placeholder="Search chats..." style={{flex:1,background:'none',border:'none',outline:'none',color:t.text,fontSize:12}}/>
+          {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:t.muted,fontSize:13,padding:0}}>✕</button>}
+        </div>
+      </div>
+
+      {/* Conversations list */}
+      <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
+        {convLoading&&<div style={{padding:'20px 16px',textAlign:'center',color:t.muted,fontSize:12,animation:'pulse 1.5s infinite'}}>Loading chats...</div>}
+        {!convLoading&&filtered.length===0&&!search&&(
+          <div style={{padding:'20px 16px',textAlign:'center',color:t.muted,fontSize:12}}>
+            <div style={{marginBottom:4}}>No chats yet</div>
+            <div style={{fontSize:11,opacity:0.7}}>Start a conversation to see it here</div>
+          </div>
+        )}
+        {!convLoading&&search&&filtered.length===0&&(
+          <div style={{padding:'16px',textAlign:'center',color:t.muted,fontSize:12}}>No chats match "{search}"</div>
+        )}
+        {sortedLabels.map(label=>(
+          <div key={label}>
+            <div style={{padding:'8px 14px 4px',fontSize:11,color:t.muted,fontWeight:600,letterSpacing:0.3}}>{label}</div>
+            {grouped[label].map(conv=>(
+              <button key={conv.id} onClick={()=>onSelectConv(conv)}
+                style={{width:'100%',padding:'8px 14px',border:'none',background:selectedConvId===conv.id?t.hoverNav:'transparent',color:selectedConvId===conv.id?t.text:t.muted,fontSize:13,textAlign:'left',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:6,margin:'1px 4px',width:'calc(100% - 8px)'}}
+                onMouseEnter={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background=t.hoverNav}}
+                onMouseLeave={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background='transparent'}}>
+                {conv.title}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{padding:'6px 4px',borderTop:`1px solid ${t.border}`,flexShrink:0}}>
+        {bottomNavItems.map(item=>(
+          <button key={item.id} onClick={()=>setTab(item.id)}
+            style={{width:'100%',padding:'8px 12px',borderRadius:7,border:'none',background:tab===item.id?t.hoverNav:'transparent',color:tab===item.id?t.text:t.muted,fontSize:13,fontWeight:tab===item.id?600:400,display:'flex',alignItems:'center',gap:9,marginBottom:1,textAlign:'left'}}>
+            <span style={{fontSize:14,width:18,textAlign:'center'}}>{item.icon}</span>
             {item.label}
-            {item.badge>0&&<span style={{marginLeft:'auto',fontSize:10,background:dark?'#2A2A2A':'#E0E0E0',color:t.muted,borderRadius:10,padding:'1px 6px',fontWeight:600}}>{item.badge}</span>}
+            {item.badge>0&&<span style={{marginLeft:'auto',fontSize:10,background:t.card2,color:t.muted,borderRadius:10,padding:'1px 6px',fontWeight:600}}>{item.badge}</span>}
           </button>
         ))}
-        <div style={{height:1,background:t.border,margin:'8px 2px'}}/>
+        <div style={{height:1,background:t.border,margin:'4px 8px 6px'}}/>
         {!isPremium?(
-          <button onClick={onUpgrade} style={{width:'100%',padding:'9px 11px',borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:9,textAlign:'left'}}>
-            <span style={{fontSize:15}}>⭐</span>Upgrade to Pro<span style={{marginLeft:'auto',fontSize:10,color:'#8B5CF6',fontWeight:600}}>₹99</span>
+          <button onClick={onUpgrade} style={{width:'100%',padding:'8px 12px',borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12,fontWeight:500,display:'flex',alignItems:'center',gap:9,textAlign:'left',marginBottom:4}}>
+            <span>⭐</span>Upgrade to Pro<span style={{marginLeft:'auto',color:'#8B5CF6',fontWeight:600}}>₹99</span>
           </button>
         ):(
-          <div style={{margin:'2px',padding:'9px 11px',borderRadius:7,background:dark?'#1A1A1A':'#F5F5F5',border:`1px solid ${t.border}`,fontSize:12,color:t.orange,fontWeight:600,display:'flex',alignItems:'center',gap:9}}>⭐ Premium Active</div>
+          <div style={{margin:'0 2px 4px',padding:'8px 12px',borderRadius:7,background:dark?'#1A1A1A':'#F5F5F5',border:`1px solid ${t.border}`,fontSize:12,color:'#D97706',fontWeight:600,display:'flex',alignItems:'center',gap:9}}>⭐ Premium Active</div>
         )}
-      </div>
-      {/* Footer */}
-      <div style={{padding:'8px 8px 12px',borderTop:`1px solid ${t.border}`}}>
-        <button onClick={()=>setDark(!dark)} style={{width:'100%',padding:'8px 11px',borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:12,display:'flex',alignItems:'center',gap:9,marginBottom:6}}>
-          <span style={{fontSize:14}}>{dark?'☀️':'🌙'}</span>{dark?'Light Mode':'Dark Mode'}
+        <button onClick={()=>setDark(!dark)} style={{width:'100%',padding:'7px 12px',borderRadius:7,border:'none',background:'transparent',color:t.muted,fontSize:12,display:'flex',alignItems:'center',gap:9,marginBottom:4}}>
+          <span style={{fontSize:13}}>{dark?'☀️':'🌙'}</span>{dark?'Light Mode':'Dark Mode'}
         </button>
-        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 3px'}}>
-          <div style={{width:28,height:28,borderRadius:'50%',background:dark?'#2A2A2A':'#E8E8E8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:t.text,flexShrink:0}}>{userName.slice(0,1).toUpperCase()}</div>
+        <div style={{display:'flex',alignItems:'center',gap:9,padding:'6px 12px'}}>
+          <div style={{width:28,height:28,borderRadius:'50%',background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff',flexShrink:0}}>{userName.slice(0,1).toUpperCase()}</div>
           <div style={{flex:1,overflow:'hidden'}}>
             <div style={{fontSize:12,fontWeight:600,color:t.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{userName}</div>
             <button onClick={onLogout} style={{background:'none',border:'none',color:t.muted,fontSize:11,padding:0,cursor:'pointer'}}>Sign out</button>
@@ -990,37 +1091,48 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
   )
 }
 
-function BottomNav({tab,setTab,notes,dark}){
+// ── Mobile Bottom Nav ──────────────────────────────────────────────────────
+function BottomNav({tab,setTab,notes,dark,onNewChat}){
   const t=T(dark)
-  const items=[{id:'chat',icon:'💬',label:'Chat'},{id:'history',icon:'🕐',label:'History'},{id:'notes',icon:'📝',label:'Notes',badge:notes.length},{id:'progress',icon:'📊',label:'Progress'},{id:'search',icon:'🔍',label:'Search'}]
+  const items=[
+    {id:'new',icon:'✏️',label:'New'},
+    {id:'chat',icon:'💬',label:'Chat'},
+    {id:'notes',icon:'📝',label:'Notes',badge:notes.length},
+    {id:'progress',icon:'📊',label:'Progress'},
+    {id:'search',icon:'🔍',label:'Search'},
+  ]
   return(
-    <div style={{display:'flex',borderTop:`1px solid ${t.border}`,background:t.surface,flexShrink:0}}>
-      {items.map(item=>(<button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,padding:'8px 2px 7px',border:'none',borderTop:`2px solid ${tab===item.id?'#8B5CF6':'transparent'}`,background:'transparent',color:tab===item.id?'#8B5CF6':t.muted,fontSize:9,fontWeight:tab===item.id?700:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative'}}><span style={{fontSize:18}}>{item.icon}</span>{item.label}{item.badge>0&&<span style={{position:'absolute',top:4,right:'calc(50% - 18px)',fontSize:8,background:'#8B5CF6',color:'#fff',borderRadius:8,padding:'1px 4px',fontWeight:700}}>{item.badge}</span>}</button>))}
+    <div style={{display:'flex',borderTop:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
+      {items.map(item=>(
+        <button key={item.id} onClick={()=>item.id==='new'?onNewChat():setTab(item.id)} style={{flex:1,padding:'8px 2px 7px',border:'none',borderTop:`2px solid ${(tab===item.id&&item.id!=='new')?'#8B5CF6':'transparent'}`,background:'transparent',color:(tab===item.id&&item.id!=='new')?'#8B5CF6':t.muted,fontSize:9,fontWeight:(tab===item.id&&item.id!=='new')?700:400,display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative'}}>
+          <span style={{fontSize:18}}>{item.icon}</span>{item.label}
+          {item.badge>0&&<span style={{position:'absolute',top:4,right:'calc(50% - 18px)',fontSize:8,background:'#8B5CF6',color:'#fff',borderRadius:8,padding:'1px 4px',fontWeight:700}}>{item.badge}</span>}
+        </button>
+      ))}
     </div>
   )
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App(){
-  const [user,setUser]=useState(null)
-  const [loading,setLoading]=useState(true)
-  const [profile,setProfile]=useState(null)
-  const [showProfileSetup,setShowProfileSetup]=useState(false)
-  const [tab,setTab]=useState('chat')
-  const [notes,setNotes]=useState([])
-  const [notePrefill,setNotePrefill]=useState(null)
-  const [weakTopics,setWeakTopics]=useState([])
-  const [dark,setDark]=useState(true)
-  const [showPremium,setShowPremium]=useState(false)
-  const [isPremium,setIsPremium]=useState(false)
-  const [mobile,setMobile]=useState(window.innerWidth<768)
-  const [aiMode,setAiMode]=useState('study')
+  const[user,setUser]=useState(null)
+  const[loading,setLoading]=useState(true)
+  const[profile,setProfile]=useState(null)
+  const[showProfileSetup,setShowProfileSetup]=useState(false)
+  const[tab,setTab]=useState('chat')
+  const[notes,setNotes]=useState([])
+  const[notePrefill,setNotePrefill]=useState(null)
+  const[weakTopics,setWeakTopics]=useState([])
+  const[dark,setDark]=useState(true)
+  const[showPremium,setShowPremium]=useState(false)
+  const[isPremium,setIsPremium]=useState(false)
+  const[mobile,setMobile]=useState(window.innerWidth<768)
+  const[aiMode,setAiMode]=useState('study')
+  const[conversations,setConversations]=useState([])
+  const[convLoading,setConvLoading]=useState(false)
+  const[selectedConv,setSelectedConv]=useState(null) // null = fresh chat
 
-  useEffect(()=>{
-    const h=()=>setMobile(window.innerWidth<768)
-    window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)
-  },[])
-
+  useEffect(()=>{const h=()=>setMobile(window.innerWidth<768);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[])
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       if(session?.user){setUser(session.user);loadProfile(session.user.id)}
@@ -1038,23 +1150,46 @@ export default function App(){
     if(data){setProfile(data);setWeakTopics(data.weak_topics||[]);setIsPremium(data.premium===true)}
     else setShowProfileSetup(true)
     setLoading(false)
+    loadConversations(id)
   }
 
-  async function logout(){await supabase.auth.signOut();setUser(null);setProfile(null);setNotes([]);setTab('chat');setIsPremium(false)}
+  async function loadConversations(userId){
+    setConvLoading(true)
+    const{data}=await supabase.from('messages').select('*').eq('user_id',userId||user?.id).order('created_at',{ascending:false}).limit(300)
+    if(data)setConversations(groupConversations(data))
+    setConvLoading(false)
+  }
+
+  function handleNewMessage(){
+    // Refresh conversations list when new message is saved
+    if(user)setTimeout(()=>loadConversations(user.id),1000)
+  }
+
+  async function logout(){await supabase.auth.signOut();setUser(null);setProfile(null);setNotes([]);setTab('chat');setIsPremium(false);setConversations([]);setSelectedConv(null)}
   function saveFromAI(content){setNotePrefill(content);setTab('notes')}
   function onProfileDone(p){setProfile(p);setShowProfileSetup(false)}
+  function handleNewChat(){setSelectedConv(null);setTab('chat')}
+
   const t=T(dark)
 
-  if(loading)return <div style={{minHeight:'100vh',background:dark?'#000':'#FFF',display:'flex',alignItems:'center',justifyContent:'center'}}><style>{CSS(dark)}</style><div style={{fontSize:40,animation:'pulse 1.5s ease infinite'}}>🧠</div></div>
+  if(loading)return(
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <style>{CSS(dark)}</style>
+      <div style={{fontSize:40,animation:'pulse 1.5s ease infinite'}}>🧠</div>
+    </div>
+  )
   if(!user)return <><style>{CSS(true)}</style><Landing onAuth={setUser}/></>
   if(showProfileSetup)return <ProfileSetup user={user} onDone={onProfileDone} dark={dark}/>
+
+  const showingConv=selectedConv&&tab==='chat'
 
   return(
     <div style={{height:'100vh',display:'flex',flexDirection:'column',background:t.bg,color:t.text,overflow:'hidden'}}>
       <style>{CSS(dark)}</style>
 
+      {/* Mobile top bar */}
       {mobile&&(
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderBottom:`1px solid ${t.border}`,background:t.surface,flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
           <div style={{display:'flex',gap:7,alignItems:'center'}}>
             <div style={{display:'flex',background:t.card,borderRadius:6,padding:2,border:`1px solid ${t.border}`}}>
@@ -1068,17 +1203,29 @@ export default function App(){
       )}
 
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
-        {!mobile&&<Sidebar tab={tab} setTab={setTab} user={user} notes={notes} dark={dark} setDark={setDark} onLogout={logout} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium} aiMode={aiMode} setAiMode={setAiMode}/>}
+        {!mobile&&(
+          <Sidebar
+            tab={tab} setTab={(t)=>{setTab(t);if(t!=='chat')setSelectedConv(null)}}
+            user={user} notes={notes} dark={dark} setDark={setDark}
+            onLogout={logout} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}
+            aiMode={aiMode} setAiMode={setAiMode}
+            conversations={conversations} convLoading={convLoading}
+            onSelectConv={(conv)=>{setSelectedConv(conv);setTab('chat')}}
+            selectedConvId={selectedConv?.id}
+            onNewChat={handleNewChat}
+          />
+        )}
+
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
-          {tab==='chat'&&<ChatTab user={user} notes={notes} profile={profile} onSaveNote={saveFromAI} weakTopics={weakTopics} setWeakTopics={setWeakTopics} isPremium={isPremium} dark={dark} onUpgrade={()=>setShowPremium(true)} aiMode={aiMode}/>}
-          {tab==='history'&&<HistoryTab user={user} dark={dark}/>}
+          {showingConv&&<ConversationView conversation={selectedConv} dark={dark} onBack={()=>setSelectedConv(null)}/>}
+          {!showingConv&&tab==='chat'&&<ChatTab user={user} notes={notes} profile={profile} onSaveNote={saveFromAI} weakTopics={weakTopics} setWeakTopics={setWeakTopics} isPremium={isPremium} dark={dark} onUpgrade={()=>setShowPremium(true)} aiMode={aiMode} onNewMessage={handleNewMessage}/>}
           {tab==='notes'&&<NotesTab user={user} notes={notes} setNotes={setNotes} prefill={notePrefill} clearPrefill={()=>setNotePrefill(null)} dark={dark}/>}
           {tab==='progress'&&<ProgressTab user={user} profile={profile} weakTopics={weakTopics} setWeakTopics={setWeakTopics} notes={notes} dark={dark} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}/>}
           {tab==='search'&&<SearchTab notes={notes} dark={dark}/>}
         </div>
       </div>
 
-      {mobile&&<BottomNav tab={tab} setTab={setTab} notes={notes} dark={dark}/>}
+      {mobile&&<BottomNav tab={tab} setTab={(t)=>{setTab(t);setSelectedConv(null)}} notes={notes} dark={dark} onNewChat={handleNewChat}/>}
       {showPremium&&<PremiumModal onClose={()=>setShowPremium(false)} dark={dark} user={user}/>}
     </div>
   )
