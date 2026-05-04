@@ -484,7 +484,56 @@ const studyModes=[
   {id:'predict',label:'🎯 Predict',color:'#EF4444'},
 ]
 
-function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremium,dark,onUpgrade,aiMode,onNewMessage}){
+// ── Change Subject Modal ───────────────────────────────────────────────────
+function SubjectModal({profile,onClose,onSave,dark}){
+  const t=T(dark)
+  const[group,setGroup]=useState(()=>{
+    if(!profile?.board)return''
+    return Object.keys(BOARD_GROUPS).find(g=>BOARD_GROUPS[g].includes(profile.board))||''
+  })
+  const[board,setBoard]=useState(profile?.board||'')
+  const[subject,setSubject]=useState(profile?.subject||'')
+  const boards=group?BOARD_GROUPS[group]:[]
+  const subjects=board?BOARDS[board]||[]:[]
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:26,width:'100%',maxWidth:420}} className="fu">
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:t.text}}>Change Subject</div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:t.muted,fontSize:20,padding:0,lineHeight:1}}>✕</button>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,color:t.muted,fontWeight:600,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Category</label>
+          <select value={group} onChange={e=>{setGroup(e.target.value);setBoard('');setSubject('')}} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+            <option value=''>Select category...</option>
+            {Object.keys(BOARD_GROUPS).map(g=><option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        {group&&<div style={{marginBottom:14}}>
+          <label style={{fontSize:11,color:t.muted,fontWeight:600,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Course / Class</label>
+          <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+            <option value=''>Select course...</option>
+            {boards.map(b=><option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>}
+        {board&&subjects.length>0&&<div style={{marginBottom:20}}>
+          <label style={{fontSize:11,color:t.muted,fontWeight:600,display:'block',marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>Subject <span style={{fontWeight:400,textTransform:'none'}}>— optional</span></label>
+          <select value={subject} onChange={e=>setSubject(e.target.value)} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+            <option value=''>All subjects</option>
+            {subjects.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>}
+        {!group&&<div style={{height:20}}/>}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{flex:1,padding:'10px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:t.muted,fontSize:13}}>Cancel</button>
+          <button onClick={()=>onSave(board,subject)} disabled={!board} style={{flex:2,padding:'10px',borderRadius:8,border:'none',background:board?'#8B5CF6':t.border,color:'#fff',fontSize:13,fontWeight:600,opacity:board?1:0.4}}>Save Changes</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremium,dark,onUpgrade,aiMode,onNewMessage,onProfileUpdate}){
   const t=T(dark)
   const[messages,setMessages]=useState([])
   const[input,setInput]=useState('')
@@ -503,10 +552,22 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   const[currentQuiz,setCurrentQuiz]=useState(null)
   const[quizMsgId,setQuizMsgId]=useState(null)
   const[loadingNext,setLoadingNext]=useState(false)
+  const[showSubjectModal,setShowSubjectModal]=useState(false)
+  const[localProfile,setLocalProfile]=useState(profile)
   const bottomRef=useRef(null)
   const fileRef=useRef(null)
   const syllabusRef=useRef(null)
   const userName=user.user_metadata?.name||user.email.split('@')[0]
+
+  useEffect(()=>{setLocalProfile(profile)},[profile])
+
+  async function saveSubject(board,subject){
+    const updated={...localProfile,board,subject:subject||null}
+    setLocalProfile(updated)
+    setShowSubjectModal(false)
+    await supabase.from('profiles').update({board,subject:subject||null}).eq('user_id',user.id)
+    if(onProfileUpdate)onProfileUpdate(updated)
+  }
 
   useEffect(()=>{
     supabase.from('usage').select('count').eq('user_id',user.id).eq('date',today()).single().then(({data})=>{if(data)setUsage(data.count)})
@@ -552,25 +613,29 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
   function addUrl(){if(!urlInput.trim())return;setAttachment({type:'url',data:urlInput.trim(),preview:urlInput.trim()});setUrlInput('');setShowAttach(false)}
 
   function buildSystem(){
-    // CRITICAL: Direct, concise responses — no greetings, no question repetition
-    const directness = ' IMPORTANT: Never start responses with greetings like "Hi!" or "Sure!". Never repeat the question back to the user. Answer directly and concisely. Give the exact information requested. Do not add filler phrases or unnecessary preambles.'
+    const baseRules = `
+CONVERSATION RULES (follow these strictly):
+1. If the user sends a greeting (hi, hello, hii, hey, sup, good morning, etc.) — respond with a short friendly greeting only. Do NOT explain any topics. Do NOT list subjects or units. Just say hello back warmly in 1-2 sentences.
+2. If the user asks a casual/general question (how are you, what can you do, etc.) — answer briefly and naturally. No study content unless asked.
+3. ONLY provide study content when the user explicitly asks about a topic, subject, or requests explanation/quiz/summary.
+4. Never start with "Sure!", "Of course!", "Certainly!", "Great question!". Get to the point.
+5. Never repeat the user's question back to them.
+6. Match response length to the question. Short question = short answer. Detailed question = detailed answer.`
 
-    if(aiMode==='general')return 'You are Memora, a helpful and friendly AI assistant. Help with anything concisely and directly.' + directness
+    if(aiMode==='general')return 'You are Memora, a helpful and friendly AI assistant.' + baseRules
 
-    let sys='You are Memora, a precise AI study assistant for Indian students.'
-    if(profile?.board)sys+=' Student course: '+profile.board+'.'
-    if(profile?.subject)sys+=' Subject: '+profile.subject+'.'
-    if(syllabus){sys+='\n\nCRITICAL: Student uploaded their exact syllabus. Follow ONLY these units:\n'+syllabus+'\nDo not go outside this syllabus.'}
-    else sys+=' Follow the standard curriculum. Cover ALL units completely, never stop after Unit 1.'
-    sys+=' Formatting: ## for unit headings, **bold** for key terms, numbered lists for steps. Be exam-focused.'
-    if(mode==='summarize')sys+=' Task: Write a structured unit-wise summary covering ALL units.'
-    if(mode==='explain')sys+=' Task: Explain in simple language with real examples. Use numbered steps.'
-    if(mode==='flashcard')sys+=' Task: Generate 5 flashcard-style Q&A pairs:\nQ: [question]\nA: [concise answer]\n\n(repeat for each)'
-    if(mode==='quiz')sys+=' Task: Generate EXACTLY 1 MCQ on the topic. Each part MUST be on its own line:\nQUESTION: [text]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nANSWER: [A or B or C or D only]'
-    if(mode==='predict')sys+=' Task: List 5-8 most likely exam questions based on standard exam patterns. Include brief hints for each.'
-    if(notes.length>0)sys+='\n\nStudent notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
-    if(weakTopics.length>0)sys+='\n\nWeak topics: '+weakTopics.join(', ')
-    return sys + directness
+    let sys='You are Memora, an AI study assistant for Indian students.'
+    if(localProfile?.board)sys+=' Student course: '+localProfile.board+'.'
+    if(localProfile?.subject)sys+=' Subject focus: '+localProfile.subject+'.'
+    if(syllabus){sys+='\n\nStudent uploaded their syllabus. When answering study questions, follow ONLY these units:\n'+syllabus}
+    if(mode==='summarize')sys+='\n\nWhen the user asks for a summary: Write a structured unit-wise summary covering ALL units using ## headings.'
+    if(mode==='explain')sys+='\n\nWhen the user asks for an explanation: Explain in simple language with real examples, using numbered steps.'
+    if(mode==='flashcard')sys+='\n\nWhen the user asks for flashcards: Generate 5 Q&A pairs in format:\nQ: [question]\nA: [concise answer]'
+    if(mode==='quiz')sys+='\n\nWhen the user asks for a quiz: Generate EXACTLY 1 MCQ. Format (each on its own line):\nQUESTION: [text]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nANSWER: [A/B/C/D only]'
+    if(mode==='predict')sys+='\n\nWhen the user asks for predictions: List 5-8 likely exam questions with brief hints each.'
+    if(notes.length>0)sys+='\n\nStudent saved notes:\n'+notes.map(n=>'['+n.tag+'] '+n.title+': '+n.body).join('\n')
+    if(weakTopics.length>0)sys+='\n\nStudent weak topics: '+weakTopics.join(', ')
+    return sys + baseRules
   }
 
   const limitHit=usage>=(isPremium?9999:FREE_LIMIT)
@@ -640,6 +705,17 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
+      {/* Subject bar */}
+      {aiMode==='study'&&(
+        <div style={{padding:'7px 20px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+          <span style={{fontSize:12,color:t.muted}}>📚</span>
+          <span style={{fontSize:12,color:t.muted,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {localProfile?.board?<><span style={{color:t.text,fontWeight:500}}>{localProfile.board}</span>{localProfile?.subject&&<span style={{color:t.muted}}> · {localProfile.subject}</span>}</>:'No course selected'}
+          </span>
+          <button onClick={()=>setShowSubjectModal(true)} style={{fontSize:11,color:'#8B5CF6',background:'rgba(139,92,246,0.08)',border:'1px solid rgba(139,92,246,0.2)',borderRadius:6,padding:'3px 10px',fontWeight:600,flexShrink:0,whiteSpace:'nowrap'}}>Change ✏️</button>
+        </div>
+      )}
+
       {/* Syllabus badge */}
       {(syllabus||parsingSyllabus)&&(
         <div style={{padding:'8px 20px',borderBottom:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
@@ -787,6 +863,7 @@ function ChatTab({user,notes,profile,onSaveNote,weakTopics,setWeakTopics,isPremi
         </div>
         <div style={{fontSize:11,color:t.muted,marginTop:6,textAlign:'center'}}>Enter to send · Shift+Enter for new line{aiMode==='study'?' · Upload syllabus PDF for exact answers':''}</div>
       </div>
+      {showSubjectModal&&<SubjectModal profile={localProfile} onClose={()=>setShowSubjectModal(false)} onSave={saveSubject} dark={dark}/>}
     </div>
   )
 }
@@ -1218,7 +1295,7 @@ export default function App(){
 
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
           {showingConv&&<ConversationView conversation={selectedConv} dark={dark} onBack={()=>setSelectedConv(null)}/>}
-          {!showingConv&&tab==='chat'&&<ChatTab user={user} notes={notes} profile={profile} onSaveNote={saveFromAI} weakTopics={weakTopics} setWeakTopics={setWeakTopics} isPremium={isPremium} dark={dark} onUpgrade={()=>setShowPremium(true)} aiMode={aiMode} onNewMessage={handleNewMessage}/>}
+          {!showingConv&&tab==='chat'&&<ChatTab user={user} notes={notes} profile={profile} onSaveNote={saveFromAI} weakTopics={weakTopics} setWeakTopics={setWeakTopics} isPremium={isPremium} dark={dark} onUpgrade={()=>setShowPremium(true)} aiMode={aiMode} onNewMessage={handleNewMessage} onProfileUpdate={(p)=>setProfile(p)}/>}
           {tab==='notes'&&<NotesTab user={user} notes={notes} setNotes={setNotes} prefill={notePrefill} clearPrefill={()=>setNotePrefill(null)} dark={dark}/>}
           {tab==='progress'&&<ProgressTab user={user} profile={profile} weakTopics={weakTopics} setWeakTopics={setWeakTopics} notes={notes} dark={dark} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}/>}
           {tab==='search'&&<SearchTab notes={notes} dark={dark}/>}
