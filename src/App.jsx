@@ -298,64 +298,103 @@ function Landing({onAuth}){
 }
 
 // ── Profile Setup ──────────────────────────────────────────────────────────
-function ProfileSetup({user,onDone,dark}){
-  const t=T(dark)
-  const[group,setGroup]=useState('')
-  const[board,setBoard]=useState('')
-  const[subject,setSubject]=useState('')
-  const[saving,setSaving]=useState(false)
-  const[err,setErr]=useState('')
-  const groups=Object.keys(BOARD_GROUPS)
-  const boards=group?BOARD_GROUPS[group]:[]
-  const subjects=board?BOARDS[board]||[]:[]
+function ProfileSetup({user, onDone, dark}){
+  const t = T(dark)
+  const[group, setGroup] = useState('')
+  const[board, setBoard] = useState('')
+  const[subject, setSubject] = useState('')
+  const[saving, setSaving] = useState(false)
+  const[err, setErr] = useState('')
+
+  const groups = Object.keys(BOARD_GROUPS)
+  const boards = group ? BOARD_GROUPS[group] : []
+  const subjects = board ? BOARDS[board] || [] : []
+
   async function save(){
-    if(!board)return
+    if(!board) return
     setErr('')
     setSaving(true)
+
     try {
-      const{data,error}=await supabase.from('profiles').upsert(
-        {user_id:user.id,name:user.user_metadata?.name||user.email.split('@')[0],board,subject:subject||null,weak_topics:[],premium:false},
-        {onConflict:'user_id'}
-      ).select().single()
-      if(error){setErr('Could not save profile. Please try again.');setSaving(false);return}
-      if(data)onDone(data)
-    } catch(e) {
-      setErr('Something went wrong. Please try again.')
+      const payload = {
+        user_id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Student',
+        board,
+        subject: subject || null,
+        weak_topics: [],
+        premium: false
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) onDone(data)
+    } catch (e) {
+      console.error("Save Profile Error:", e)
+      setErr(e.message?.includes("violates row-level security") 
+        ? "Permission error. Check Supabase RLS." 
+        : "Could not save profile. Please try again.")
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
+
   return(
     <div style={{minHeight:'100vh',background:t.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
       <style>{CSS(dark)}</style>
       <div style={{width:'100%',maxWidth:460}} className="fu">
         <div style={{marginBottom:28,textAlign:'center'}}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:t.text,marginBottom:6}}>Set up your profile</div>
+          <div style={{fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:t.text, marginBottom:6}}>Set up your profile</div>
           <div style={{fontSize:14,color:t.muted}}>So Memora can personalize your study experience.</div>
         </div>
-        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:24}}>
+
+        <div style={{background:t.card, border:`1px solid ${t.border}`, borderRadius:14, padding:24}}>
+          {/* Category */}
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Category</label>
-            <select value={group} onChange={e=>{setGroup(e.target.value);setBoard('');setSubject('')}} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>CATEGORY</label>
+            <select value={group} onChange={e=>{setGroup(e.target.value);setBoard('');setSubject('')}} 
+              style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
               <option value=''>Select your category...</option>
               {groups.map(g=><option key={g} value={g}>{g}</option>)}
             </select>
           </div>
-          {group&&<div style={{marginBottom:16}}>
-            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Course / Class</label>
-            <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+
+          {/* Course / Class */}
+          {group && <div style={{marginBottom:16}}>
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>COURSE / CLASS</label>
+            <select value={board} onChange={e=>{setBoard(e.target.value);setSubject('')}} 
+              style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
               <option value=''>Select...</option>
               {boards.map(b=><option key={b} value={b}>{b}</option>)}
             </select>
           </div>}
-          {board&&subjects.length>0&&<div style={{marginBottom:20}}>
-            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>Primary Subject <span style={{fontWeight:400,textTransform:'none'}}>(optional)</span></label>
-            <select value={subject} onChange={e=>setSubject(e.target.value)} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
+
+          {/* Primary Subject */}
+          {board && subjects.length > 0 && <div style={{marginBottom:20}}>
+            <label style={{fontSize:12,color:t.muted,fontWeight:600,display:'block',marginBottom:7,textTransform:'uppercase',letterSpacing:0.5}}>PRIMARY SUBJECT <span style={{fontWeight:400,textTransform:'none'}}>(optional)</span></label>
+            <select value={subject} onChange={e=>setSubject(e.target.value)} 
+              style={{width:'100%',padding:'11px 14px',borderRadius:8,border:`1px solid ${t.border}`,background:t.card2,color:t.text,fontSize:14,appearance:'none'}}>
               <option value=''>All subjects</option>
               {subjects.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
           </div>}
-          {err&&<div style={{fontSize:13,color:'#DC2626',marginBottom:12,textAlign:'center',padding:'8px',background:'rgba(220,38,38,0.07)',borderRadius:7}}>{err}</div>}
-          <button onClick={save} disabled={!board||saving} style={{width:'100%',padding:13,borderRadius:8,border:'none',background:board?'#8B5CF6':t.border,color:'#fff',fontSize:15,fontWeight:700,opacity:!board?0.4:1}}>{saving?'Saving...':'Start Studying →'}</button>
+
+          {err && <div style={{color:'#DC2626', background:'rgba(220,38,38,0.1)', padding:12, borderRadius:8, marginBottom:16, fontSize:14, textAlign:'center'}}>
+            {err}
+          </div>}
+
+          <button 
+            onClick={save} 
+            disabled={!board || saving} 
+            style={{width:'100%', padding:13, borderRadius:8, border:'none', background:board?'#8B5CF6':t.border, color:'#fff', fontSize:15, fontWeight:700, opacity:!board?0.4:1}}
+          >
+            {saving ? 'Saving...' : 'Start Studying →'}
+          </button>
         </div>
       </div>
     </div>
