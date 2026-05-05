@@ -109,7 +109,6 @@ function parseQuiz(text){
   }catch{return null}
 }
 
-// ── Group flat messages into conversations ─────────────────────────────────
 function groupConversations(messages){
   if(!messages.length)return[]
   const sorted=[...messages].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
@@ -143,7 +142,6 @@ function getDateLabel(dateStr){
   return new Date(dateStr).toLocaleDateString('en-IN',{month:'long',year:'numeric'})
 }
 
-// ── Theme ──────────────────────────────────────────────────────────────────
 const T=(dark)=>({
   bg:       dark?'#212121':'#FFFFFF',
   sidebar:  dark?'#171717':'#F0F0F0',
@@ -185,7 +183,6 @@ button:active{transform:scale(0.97);}
 .msg{animation:fadeUp 0.2s ease both;}
 `
 
-// ── Markdown renderer ──────────────────────────────────────────────────────
 function MD({content,dark}){
   if(!content)return null
   const t=T(dark)
@@ -233,7 +230,6 @@ function MD({content,dark}){
   return <div style={{lineHeight:1.7}}>{els}</div>
 }
 
-// ── Landing / Auth ─────────────────────────────────────────────────────────
 function Landing({onAuth}){
   const[view,setView]=useState('home')
   const[mode,setMode]=useState('login')
@@ -304,19 +300,28 @@ function Landing({onAuth}){
 // ── Profile Setup ──────────────────────────────────────────────────────────
 function ProfileSetup({user,onDone,dark}){
   const t=T(dark)
-  const[step,setStep]=useState(0)
   const[group,setGroup]=useState('')
   const[board,setBoard]=useState('')
   const[subject,setSubject]=useState('')
   const[saving,setSaving]=useState(false)
+  const[err,setErr]=useState('')
   const groups=Object.keys(BOARD_GROUPS)
   const boards=group?BOARD_GROUPS[group]:[]
   const subjects=board?BOARDS[board]||[]:[]
   async function save(){
     if(!board)return
+    setErr('')
     setSaving(true)
-    const{data,error}=await supabase.from('profiles').upsert({user_id:user.id,name:user.user_metadata?.name||user.email.split('@')[0],board,subject:subject||null,weak_topics:[],premium:false},{onConflict:'user_id'}).select().single()
-    if(!error&&data)onDone(data)
+    try {
+      const{data,error}=await supabase.from('profiles').upsert(
+        {user_id:user.id,name:user.user_metadata?.name||user.email.split('@')[0],board,subject:subject||null,weak_topics:[],premium:false},
+        {onConflict:'user_id'}
+      ).select().single()
+      if(error){setErr('Could not save profile. Please try again.');setSaving(false);return}
+      if(data)onDone(data)
+    } catch(e) {
+      setErr('Something went wrong. Please try again.')
+    }
     setSaving(false)
   }
   return(
@@ -349,6 +354,7 @@ function ProfileSetup({user,onDone,dark}){
               {subjects.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
           </div>}
+          {err&&<div style={{fontSize:13,color:'#DC2626',marginBottom:12,textAlign:'center',padding:'8px',background:'rgba(220,38,38,0.07)',borderRadius:7}}>{err}</div>}
           <button onClick={save} disabled={!board||saving} style={{width:'100%',padding:13,borderRadius:8,border:'none',background:board?'#8B5CF6':t.border,color:'#fff',fontSize:15,fontWeight:700,opacity:!board?0.4:1}}>{saving?'Saving...':'Start Studying →'}</button>
         </div>
       </div>
@@ -474,7 +480,6 @@ function QuizCard({quiz,onAnswer,onNext,onEnd,score,total,dark}){
   )
 }
 
-// ── Chat Tab ───────────────────────────────────────────────────────────────
 const studyModes=[
   {id:'chat',label:'💬 Chat',color:'#8B5CF6'},
   {id:'summarize',label:'📄 Summarize',color:'#0EA5E9'},
@@ -484,7 +489,6 @@ const studyModes=[
   {id:'predict',label:'🎯 Predict',color:'#EF4444'},
 ]
 
-// ── Change Subject Modal ───────────────────────────────────────────────────
 function SubjectModal({profile,onClose,onSave,dark}){
   const t=T(dark)
   const[group,setGroup]=useState(()=>{
@@ -705,7 +709,6 @@ CONVERSATION RULES (follow these strictly):
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:t.bg}}>
-      {/* Subject bar */}
       {aiMode==='study'&&(
         <div style={{padding:'7px 20px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           <span style={{fontSize:12,color:t.muted}}>📚</span>
@@ -716,7 +719,6 @@ CONVERSATION RULES (follow these strictly):
         </div>
       )}
 
-      {/* Syllabus badge */}
       {(syllabus||parsingSyllabus)&&(
         <div style={{padding:'8px 20px',borderBottom:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           {parsingSyllabus?<><span style={{fontSize:12,color:t.muted,animation:'pulse 1.5s infinite'}}>⏳ Parsing syllabus PDF...</span></>:
@@ -724,7 +726,6 @@ CONVERSATION RULES (follow these strictly):
         </div>
       )}
 
-      {/* Messages */}
       <div style={{flex:1,overflowY:'auto',padding:'24px 0'}}>
         {messages.length===0&&(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',padding:'0 20px',textAlign:'center'}} className="fu">
@@ -748,25 +749,13 @@ CONVERSATION RULES (follow these strictly):
         )}
 
         {messages.map(m=>(
-          <div key={m.id} className="msg" style={{
-            display:'flex',
-            flexDirection:m.role==='user'?'row-reverse':'row',
-            gap:12,
-            padding:'6px 20px',
-            maxWidth:760,
-            margin:'0 auto',
-            width:'100%',
-            alignItems:'flex-start',
-          }}>
-            {/* Avatar */}
+          <div key={m.id} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:12,padding:'6px 20px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
             {m.role==='ai'&&(
               <div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,marginTop:2}}>🧠</div>
             )}
             {m.role==='user'&&(
               <div style={{width:32,height:32,borderRadius:6,background:t.card2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,color:t.text,marginTop:2,border:`1px solid ${t.border}`}}>{userName.slice(0,1).toUpperCase()}</div>
             )}
-
-            {/* Message content */}
             <div style={{flex:1,maxWidth:'calc(100% - 44px)',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
               {m.role==='user'?(
                 <div style={{padding:'10px 16px',borderRadius:12,background:t.userBubble,color:t.text,fontSize:15,lineHeight:1.6,maxWidth:'85%'}}>
@@ -804,7 +793,6 @@ CONVERSATION RULES (follow these strictly):
         <div ref={bottomRef}/>
       </div>
 
-      {/* Attachment preview */}
       {attachment&&(
         <div style={{padding:'6px 20px',borderTop:`1px solid ${t.border}`,background:t.surface,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           <span style={{fontSize:13,color:t.accent}}>📎 {attachment.type==='image'?'Image':'URL'}: {attachment.preview.slice(0,60)}</span>
@@ -812,7 +800,6 @@ CONVERSATION RULES (follow these strictly):
         </div>
       )}
 
-      {/* Attach panel */}
       {showAttach&&(
         <div style={{padding:'12px 20px',borderTop:`1px solid ${t.border}`,background:t.surface,flexShrink:0}}>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
@@ -827,7 +814,6 @@ CONVERSATION RULES (follow these strictly):
         </div>
       )}
 
-      {/* Input area */}
       <div style={{padding:'12px 20px 18px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
         {limitHit&&(
           <div style={{fontSize:13,color:t.red,background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:8,padding:'9px 16px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>
@@ -868,7 +854,6 @@ CONVERSATION RULES (follow these strictly):
   )
 }
 
-// ── Conversation View (read-only history) ──────────────────────────────────
 function ConversationView({conversation,dark,onBack}){
   const t=T(dark)
   const bottomRef=useRef(null)
@@ -907,7 +892,6 @@ function ConversationView({conversation,dark,onBack}){
   )
 }
 
-// ── Notes Tab ──────────────────────────────────────────────────────────────
 function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
   const t=T(dark)
   const[filter,setFilter]=useState('')
@@ -973,7 +957,6 @@ function NotesTab({user,notes,setNotes,prefill,clearPrefill,dark}){
   )
 }
 
-// ── Progress Tab ───────────────────────────────────────────────────────────
 function ProgressTab({user,profile,weakTopics,setWeakTopics,notes,dark,onUpgrade,isPremium}){
   const t=T(dark)
   async function removeWeak(topic){const u=weakTopics.filter(x=>x!==topic);setWeakTopics(u);await supabase.from('profiles').update({weak_topics:u}).eq('user_id',user.id)}
@@ -1011,7 +994,6 @@ function ProgressTab({user,profile,weakTopics,setWeakTopics,notes,dark,onUpgrade
   )
 }
 
-// ── Search Tab ─────────────────────────────────────────────────────────────
 function SearchTab({notes,dark}){
   const t=T(dark)
   const[q,setQ]=useState('')
@@ -1050,7 +1032,6 @@ function SearchTab({notes,dark}){
   )
 }
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
 function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremium,aiMode,setAiMode,conversations,convLoading,onSelectConv,selectedConvId,onNewChat}){
   const t=T(dark)
   const userName=user.user_metadata?.name||user.email.split('@')[0]
@@ -1061,7 +1042,6 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
     ?conversations.filter(c=>c.title.toLowerCase().includes(search.toLowerCase()))
     :conversations
 
-  // Group conversations by date label
   const grouped={}
   filtered.forEach(c=>{
     const label=getDateLabel(c.date)
@@ -1082,7 +1062,6 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
 
   return(
     <div style={{width:260,height:'100%',background:t.sidebar,borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column',flexShrink:0}}>
-      {/* Top: Logo + New Chat */}
       <div style={{padding:'14px 12px 10px',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:t.text,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
@@ -1092,14 +1071,12 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
             ✏️
           </button>
         </div>
-        {/* AI Mode toggle */}
         <div style={{display:'flex',background:t.card,borderRadius:7,padding:2,border:`1px solid ${t.border}`}}>
           <button onClick={()=>setAiMode('study')} style={{flex:1,padding:'6px 0',borderRadius:5,border:'none',fontSize:11,fontWeight:aiMode==='study'?700:400,background:aiMode==='study'?'#8B5CF6':'transparent',color:aiMode==='study'?'#fff':t.muted}}>📚 Study</button>
           <button onClick={()=>setAiMode('general')} style={{flex:1,padding:'6px 0',borderRadius:5,border:'none',fontSize:11,fontWeight:aiMode==='general'?700:400,background:aiMode==='general'?t.green:'transparent',color:aiMode==='general'?'#fff':t.muted}}>💬 General</button>
         </div>
       </div>
 
-      {/* Search conversations */}
       <div style={{padding:'0 10px 6px',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:7,background:t.card,border:`1px solid ${searchFocused?'#8B5CF6':t.border}`,borderRadius:7,padding:'6px 10px',transition:'border-color 0.15s'}}>
           <span style={{fontSize:12,opacity:0.45}}>🔍</span>
@@ -1108,7 +1085,6 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
         </div>
       </div>
 
-      {/* Conversations list */}
       <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
         {convLoading&&<div style={{padding:'20px 16px',textAlign:'center',color:t.muted,fontSize:12,animation:'pulse 1.5s infinite'}}>Loading chats...</div>}
         {!convLoading&&filtered.length===0&&!search&&(
@@ -1124,7 +1100,10 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
           <div key={label}>
             <div style={{padding:'8px 14px 4px',fontSize:11,color:t.muted,fontWeight:600,letterSpacing:0.3}}>{label}</div>
             {grouped[label].map(conv=>(
-              <button key={conv.id} onClick={()=>onSelectConv(conv)}style={{padding:'8px 14px',border:'none',background:selectedConvId===conv.id?t.hoverNav:'transparent',color:selectedConvId===conv.id?t.text:t.muted,fontSize:13,textAlign:'left',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:6,margin:'1px 4px',width:'calc(100% - 8px)'}}
+              <button
+                key={conv.id}
+                onClick={()=>onSelectConv(conv)}
+                style={{padding:'8px 14px',border:'none',background:selectedConvId===conv.id?t.hoverNav:'transparent',color:selectedConvId===conv.id?t.text:t.muted,fontSize:13,textAlign:'left',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:6,margin:'1px 4px',width:'calc(100% - 8px)'}}
                 onMouseEnter={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background=t.hoverNav}}
                 onMouseLeave={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background='transparent'}}>
                 {conv.title}
@@ -1134,7 +1113,6 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
         ))}
       </div>
 
-      {/* Bottom nav */}
       <div style={{padding:'6px 4px',borderTop:`1px solid ${t.border}`,flexShrink:0}}>
         {bottomNavItems.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)}
@@ -1167,7 +1145,6 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
   )
 }
 
-// ── Mobile Bottom Nav ──────────────────────────────────────────────────────
 function BottomNav({tab,setTab,notes,dark,onNewChat}){
   const t=T(dark)
   const items=[
@@ -1189,7 +1166,6 @@ function BottomNav({tab,setTab,notes,dark,onNewChat}){
   )
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
 export default function App(){
   const[user,setUser]=useState(null)
   const[loading,setLoading]=useState(true)
@@ -1206,7 +1182,7 @@ export default function App(){
   const[aiMode,setAiMode]=useState('study')
   const[conversations,setConversations]=useState([])
   const[convLoading,setConvLoading]=useState(false)
-  const[selectedConv,setSelectedConv]=useState(null) // null = fresh chat
+  const[selectedConv,setSelectedConv]=useState(null)
 
   useEffect(()=>{const h=()=>setMobile(window.innerWidth<768);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[])
   useEffect(()=>{
@@ -1237,7 +1213,6 @@ export default function App(){
   }
 
   function handleNewMessage(){
-    // Refresh conversations list when new message is saved
     if(user)setTimeout(()=>loadConversations(user.id),1000)
   }
 
@@ -1263,7 +1238,6 @@ export default function App(){
     <div style={{height:'100vh',display:'flex',flexDirection:'column',background:t.bg,color:t.text,overflow:'hidden'}}>
       <style>{CSS(dark)}</style>
 
-      {/* Mobile top bar */}
       {mobile&&(
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderBottom:`1px solid ${t.border}`,background:t.sidebar,flexShrink:0}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,letterSpacing:-0.3}}>🧠 <span style={{color:'#8B5CF6'}}>Memora</span></div>
