@@ -1124,8 +1124,7 @@ function Sidebar({tab,setTab,user,notes,dark,setDark,onLogout,onUpgrade,isPremiu
           <div key={label}>
             <div style={{padding:'8px 14px 4px',fontSize:11,color:t.muted,fontWeight:600,letterSpacing:0.3}}>{label}</div>
             {grouped[label].map(conv=>(
-              <button key={conv.id} onClick={()=>onSelectConv(conv)}
-               style={{padding:'8px 14px',border:'none',background:selectedConvId===conv.id?t.hoverNav:'transparent',color:selectedConvId===conv.id?t.text:t.muted,fontSize:13,textAlign:'left',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:6,margin:'1px 4px',width:'calc(100% - 8px)'}}
+              <button key={conv.id} onClick={()=>onSelectConv(conv)}style={{padding:'8px 14px',border:'none',background:selectedConvId===conv.id?t.hoverNav:'transparent',color:selectedConvId===conv.id?t.text:t.muted,fontSize:13,textAlign:'left',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:6,margin:'1px 4px',width:'calc(100% - 8px)'}}
                 onMouseEnter={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background=t.hoverNav}}
                 onMouseLeave={e=>{if(selectedConvId!==conv.id)e.currentTarget.style.background='transparent'}}>
                 {conv.title}
