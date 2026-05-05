@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase.js'
+import VoiceAssistant from './VoiceAssistant';
+const [isListening, setIsListening] = useState(false);
 
 const FREE_LIMIT = 20
 
@@ -1303,6 +1305,16 @@ export default function App(){
 
       {mobile&&<BottomNav tab={tab} setTab={(t)=>{setTab(t);setSelectedConv(null)}} notes={notes} dark={dark} onNewChat={handleNewChat}/>}
       {showPremium&&<PremiumModal onClose={()=>setShowPremium(false)} dark={dark} user={user}/>}
+      <VoiceAssistant 
+  onVoiceInput={(text) => {
+    setInput(text);           // Put spoken text into input box
+    // Optionally auto-send:
+    // sendMessageWithText(text);
+  }} 
+  dark={dark} 
+  isListening={isListening}
+  setIsListening={setIsListening}
+/>
     </div>
   )
 }
