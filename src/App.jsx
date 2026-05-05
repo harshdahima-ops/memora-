@@ -316,13 +316,13 @@ function ProfileSetup({user, onDone, dark}){
     setSaving(true)
 
     try {
-      const payload = {
+            const payload = {
         user_id: user.id,
         board,
         subject: subject || null,
         weak_topics: [],
         premium: false
-        // Removed 'name' because column doesn't exist
+        // 'name' removed - table doesn't have this column
       }
 
       const { data, error } = await supabase
