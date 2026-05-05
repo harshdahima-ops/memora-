@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase.js'
-import VoiceAssistant from './VoiceAssistant';
 
-const FREE_LIMIT = 20
+const FREE_LIMIT = 30
 
 const BOARD_GROUPS = {
   'School - CBSE': ['Class 5 - CBSE','Class 6 - CBSE','Class 7 - CBSE','Class 8 - CBSE','Class 9 - CBSE','Class 10 - CBSE','Class 11 - CBSE','Class 12 - CBSE'],
@@ -1304,16 +1303,6 @@ export default function App(){
 
       {mobile&&<BottomNav tab={tab} setTab={(t)=>{setTab(t);setSelectedConv(null)}} notes={notes} dark={dark} onNewChat={handleNewChat}/>}
       {showPremium&&<PremiumModal onClose={()=>setShowPremium(false)} dark={dark} user={user}/>}
-      <VoiceAssistant 
-  onVoiceInput={(text) => {
-    setInput(text);           // Put spoken text into input box
-    // Optionally auto-send:
-    // sendMessageWithText(text);
-  }} 
-  dark={dark} 
-  isListening={isListening}
-  setIsListening={setIsListening}
-/>
     </div>
   )
 }
