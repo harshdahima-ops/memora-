@@ -310,7 +310,7 @@ function ProfileSetup({user, onDone, dark}){
   const boards = group ? BOARD_GROUPS[group] : []
   const subjects = board ? BOARDS[board] || [] : []
 
-  async function save(){
+   async function save(){
     if(!board) return
     setErr('')
     setSaving(true)
@@ -318,13 +318,32 @@ function ProfileSetup({user, onDone, dark}){
     try {
       const payload = {
         user_id: user.id,
-        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Student',
         board,
         subject: subject || null,
         weak_topics: [],
         premium: false
+        // Removed 'name' because column doesn't exist
       }
 
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Supabase Error:", error)
+        throw error
+      }
+
+      if (data) onDone(data)
+    } catch (e) {
+      console.error("Save Profile Error:", e)
+      setErr("Could not save profile. Please try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
       const { data, error } = await supabase
         .from('profiles')
         .upsert(payload, { onConflict: 'user_id' })
