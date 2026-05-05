@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase.js'
 import VoiceAssistant from './VoiceAssistant';
-const [isListening, setIsListening] = useState(false);
 
 const FREE_LIMIT = 20
 
