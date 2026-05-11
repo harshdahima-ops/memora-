@@ -1,31 +1,74 @@
+// api/parse-pdf.js
+// Memora — Syllabus PDF Parser (Vercel Serverless Function)
+// Takes raw extracted text from a PDF and uses Claude to structure it
+// into a clean syllabus that the study modes can reference
+
+import Anthropic from '@anthropic-ai/sdk'
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  // ── CORS ────────────────────────────────────────────────────
+  res.setHeader('Access-Control-Allow-Origin',  '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' })
+
+  const { text } = req.body || {}
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Text content is required' })
+  }
+
+  if (text.trim().length < 50) {
+    return res.status(400).json({ error: 'Text too short to be a valid syllabus' })
+  }
+
+  // Limit input to avoid huge tokens
+  const inputText = text.slice(0, 12000)
 
   try {
-    const { text } = req.body
-    if (!text || text.trim().length < 50) return res.status(400).json({ error: 'No text provided' })
+    const response = await anthropic.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: `You are extracting a structured syllabus from raw PDF text.
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.GROQ_API_KEY },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 1500,
-        messages: [
-          { role: 'system', content: 'You are a syllabus parser. Extract the exact syllabus structure. Output ONLY units and topics in this format:\nUnit 1: [Name]\n- Topic 1\n- Topic 2\nUnit 2: [Name]\n- Topic 1\nDo not add anything extra. Be precise and concise.' },
-          { role: 'user', content: 'Parse this syllabus and extract units/chapters:\n\n' + text.slice(0, 6000) }
-        ]
-      })
+The text below was extracted from a student's syllabus/curriculum PDF. 
+Extract and organize it into a clean, structured syllabus format.
+
+Rules:
+- Use ## for unit/module headings
+- Use bullet points for topics under each unit
+- Keep it concise — just topic names, no long descriptions
+- Remove page numbers, headers, footers, random symbols
+- If you see chapter names, topic lists, unit divisions — preserve them clearly
+- If it's not a syllabus at all, return: NOT_A_SYLLABUS
+
+Raw PDF text:
+---
+${inputText}
+---
+
+Return ONLY the structured syllabus. No intro, no explanation.`
+      }]
     })
-    const data = await response.json()
-    if (data.error) return res.status(500).json({ error: data.error.message })
-    const syllabus = data.choices?.[0]?.message?.content
-    return res.status(200).json({ syllabus })
-  } catch (e) {
-    return res.status(500).json({ error: e.message })
+
+    const result = response.content?.[0]?.text?.trim()
+
+    if (!result || result === 'NOT_A_SYLLABUS') {
+      return res.status(200).json({ error: 'Could not extract syllabus. Please upload a proper syllabus PDF.' })
+    }
+
+    return res.status(200).json({ syllabus: result })
+
+  } catch (err) {
+    console.error('[parse-pdf.js] Error:', err.message)
+    return res.status(500).json({ error: 'Failed to parse PDF. Please try again.' })
   }
 }
