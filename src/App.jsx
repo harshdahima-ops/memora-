@@ -145,158 +145,44 @@ function getDateLabel(dateStr){
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 const T=(dark)=>({
-  bg:        dark?'#07050F':'#F0EEFF',
-  sidebar:   dark?'rgba(10,7,20,0.95)':'rgba(240,236,255,0.95)',
-  surface:   dark?'rgba(255,255,255,0.04)':'rgba(124,58,237,0.06)',
-  card:      dark?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.85)',
-  card2:     dark?'rgba(255,255,255,0.1)':'rgba(124,58,237,0.08)',
-  border:    dark?'rgba(255,255,255,0.08)':'rgba(124,58,237,0.15)',
-  borderGlow:dark?'rgba(124,58,237,0.4)':'rgba(124,58,237,0.4)',
-  text:      dark?'#F0EEFF':'#1A0A3D',
-  muted:     dark?'rgba(240,236,255,0.45)':'rgba(26,10,61,0.5)',
-  accent:    '#7C3AED',
-  accentCyan:'#06B6D4',
-  accentGlow:'rgba(124,58,237,0.35)',
-  green:     '#10B981',
-  red:       '#EF4444',
-  orange:    '#F59E0B',
-  hoverNav:  dark?'rgba(124,58,237,0.12)':'rgba(124,58,237,0.08)',
-  userBubble:dark?'rgba(124,58,237,0.2)':'rgba(124,58,237,0.12)',
-  glass:     dark?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.7)',
-  glassBorder:dark?'rgba(255,255,255,0.1)':'rgba(124,58,237,0.2)',
+  bg:       dark?'#212121':'#FFFFFF',
+  sidebar:  dark?'#171717':'#F0F0F0',
+  surface:  dark?'#2A2A2A':'#F7F7F7',
+  card:     dark?'#2F2F2F':'#FFFFFF',
+  card2:    dark?'#383838':'#F0F0F0',
+  border:   dark?'#3A3A3A':'#E0E0E0',
+  text:     dark?'#ECECEC':'#0A0A0A',
+  muted:    dark?'#8C8C8C':'#606060',
+  accent:   '#8B5CF6',
+  green:    '#16A34A',
+  red:      '#DC2626',
+  orange:   '#D97706',
+  hoverNav: dark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)',
+  userBubble:dark?'#303030':'#F0F0F0',
 })
 
 const CSS=(dark)=>`
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Clash+Display:wght@600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;}
-body{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  background:${dark?'#07050F':'#F0EEFF'};
-  color:${dark?'#F0EEFF':'#1A0A3D'};
-  -webkit-font-smoothing:antialiased;
-}
-input,textarea,button,select{font-family:'Plus Jakarta Sans',sans-serif;}
-input::placeholder,textarea::placeholder{color:${dark?'rgba(240,236,255,0.3)':'rgba(26,10,61,0.3)'};}
-input:focus,textarea:focus,select:focus{outline:none;}
-button{cursor:pointer;transition:all 0.2s ease;}
-::-webkit-scrollbar{width:3px;}
-::-webkit-scrollbar-thumb{background:rgba(124,58,237,0.3);border-radius:10px;}
+body{font-family:'DM Sans',sans-serif;background:${dark?'#212121':'#FFFFFF'};color:${dark?'#ECECEC':'#0A0A0A'};-webkit-font-smoothing:antialiased;}
+input,textarea,button,select{font-family:'DM Sans',sans-serif;}
+input::placeholder,textarea::placeholder{color:${dark?'#555':'#AAA'};}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#8B5CF6!important;}
+button{cursor:pointer;transition:background 0.15s,color 0.15s,opacity 0.15s;}
+button:active{transform:scale(0.97);}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:${dark?'#444':'#CCC'};border-radius:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
-
-/* ── Animated Background ── */
-.app-bg{
-  position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
-  background:${dark
-    ?'radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124,58,237,0.18) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 80%, rgba(6,182,212,0.1) 0%, transparent 60%), #07050F'
-    :'radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124,58,237,0.12) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 80%, rgba(6,182,212,0.08) 0%, transparent 60%), #F0EEFF'
-  };
-}
-.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:orbFloat 12s ease-in-out infinite;}
-.orb1{width:500px;height:500px;background:rgba(124,58,237,0.12);top:-200px;left:-100px;animation-delay:0s;}
-.orb2{width:400px;height:400px;background:rgba(6,182,212,0.08);bottom:-150px;right:-100px;animation-delay:-4s;}
-.orb3{width:300px;height:300px;background:rgba(16,185,129,0.07);top:40%;left:40%;animation-delay:-8s;}
-
-/* ── Grid overlay ── */
-.grid-overlay{
-  position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:${dark
-    ?'linear-gradient(rgba(124,58,237,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,0.04) 1px,transparent 1px)'
-    :'linear-gradient(rgba(124,58,237,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,0.06) 1px,transparent 1px)'
-  };
-  background-size:60px 60px;
-  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
-}
-
-/* ── Glass effect ── */
-.glass{
-  background:${dark?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.7)'};
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  border:1px solid ${dark?'rgba(255,255,255,0.08)':'rgba(124,58,237,0.15)'};
-}
-.glass-sidebar{
-  background:${dark?'rgba(7,5,15,0.88)':'rgba(240,236,255,0.9)'};
-  backdrop-filter:blur(30px);
-  -webkit-backdrop-filter:blur(30px);
-  border-right:1px solid ${dark?'rgba(255,255,255,0.06)':'rgba(124,58,237,0.12)'};
-}
-.glass-input{
-  background:${dark?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.8)'};
-  backdrop-filter:blur(20px);
-  border:1px solid ${dark?'rgba(255,255,255,0.1)':'rgba(124,58,237,0.2)'};
-  transition:border-color 0.2s,box-shadow 0.2s;
-}
-.glass-input:focus-within{
-  border-color:rgba(124,58,237,0.6)!important;
-  box-shadow:0 0 0 3px rgba(124,58,237,0.12),0 0 20px rgba(124,58,237,0.1);
-}
-
-/* ── Glow button ── */
-.btn-glow{
-  background:linear-gradient(135deg,#7C3AED,#6D28D9);
-  box-shadow:0 4px 20px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.1) inset;
-  transition:all 0.2s ease;
-}
-.btn-glow:hover{
-  box-shadow:0 6px 28px rgba(124,58,237,0.6),0 0 0 1px rgba(255,255,255,0.15) inset;
-  transform:translateY(-1px);
-}
-.btn-glow:active{transform:translateY(0) scale(0.98);}
-
-/* ── Nav item hover ── */
-.nav-item{transition:all 0.15s ease;border-radius:8px;}
-.nav-item:hover{background:rgba(124,58,237,0.1);transform:translateX(2px);}
-.nav-item.active{background:rgba(124,58,237,0.15);box-shadow:inset 3px 0 0 #7C3AED;}
-
-/* ── Message animations ── */
-.msg{animation:msgIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;}
-.msg-user{animation:msgInRight 0.3s cubic-bezier(0.34,1.56,0.64,1) both;}
-
-/* ── Chip/pill ── */
-.chip{
-  border:1px solid ${dark?'rgba(255,255,255,0.08)':'rgba(124,58,237,0.2)'};
-  background:${dark?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.6)'};
-  backdrop-filter:blur(10px);
-  transition:all 0.2s ease;
-}
-.chip:hover{
-  border-color:rgba(124,58,237,0.5);
-  background:rgba(124,58,237,0.1);
-  transform:translateY(-2px);
-  box-shadow:0 4px 16px rgba(124,58,237,0.2);
-}
-
-/* ── Animations ── */
-@keyframes orbFloat{
-  0%,100%{transform:translate(0,0) scale(1);}
-  33%{transform:translate(30px,-40px) scale(1.05);}
-  66%{transform:translate(-20px,20px) scale(0.96);}
-}
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes msgInRight{from{opacity:0;transform:translateY(10px) translateX(8px) scale(0.96)}to{opacity:1;transform:translateY(0) translateX(0) scale(1)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
-@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-@keyframes glow{0%,100%{box-shadow:0 0 10px rgba(124,58,237,0.3)}50%{box-shadow:0 0 25px rgba(124,58,237,0.6)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes starTwinkle{0%,100%{opacity:0.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
-
-.fu{animation:fadeUp 0.3s ease both;}
-.fu1{animation:fadeUp 0.3s 0.06s ease both;}
-.fu2{animation:fadeUp 0.3s 0.12s ease both;}
-.fu3{animation:fadeUp 0.3s 0.18s ease both;}
-.fu4{animation:fadeUp 0.3s 0.24s ease both;}
-
-/* Gradient text */
-.grad-text{
-  background:linear-gradient(135deg,#A78BFA,#7C3AED,#06B6D4);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text;
-}
+.fu{animation:fadeUp 0.25s ease both;}
+.fu1{animation:fadeUp 0.25s 0.05s ease both;}
+.fu2{animation:fadeUp 0.25s 0.12s ease both;}
+.fu3{animation:fadeUp 0.25s 0.2s ease both;}
+.msg{animation:fadeUp 0.2s ease both;}
 `
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -348,20 +234,6 @@ function MD({content,dark}){
 }
 
 // ── Landing / Auth ─────────────────────────────────────────────────────────
-function Stars(){
-  const stars=Array.from({length:60},(_,i)=>({
-    left:Math.random()*100,top:Math.random()*100,
-    size:Math.random()*2+1,delay:Math.random()*4,dur:2+Math.random()*3
-  }))
-  return(
-    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0}}>
-      {stars.map((s,i)=>(
-        <div key={i} style={{position:'absolute',left:s.left+'%',top:s.top+'%',width:s.size,height:s.size,borderRadius:'50%',background:'rgba(200,180,255,0.6)',animation:`starTwinkle ${s.dur}s ${s.delay}s ease-in-out infinite`}}/>
-      ))}
-    </div>
-  )
-}
-
 function Landing({onAuth}){
   const[view,setView]=useState('home')
   const[mode,setMode]=useState('login')
@@ -385,132 +257,45 @@ function Landing({onAuth}){
     }catch(e){setErr(e.message)}
     setLoading(false)
   }
-
-  const inp={
-    width:'100%',padding:'12px 16px',borderRadius:10,
-    border:'1px solid rgba(255,255,255,0.1)',
-    background:'rgba(255,255,255,0.06)',
-    color:'#F0EEFF',fontSize:14,marginBottom:10,
-    backdropFilter:'blur(10px)',
-    transition:'border-color 0.2s,box-shadow 0.2s',
-  }
-
+  const t=T(true)
   if(view==='auth')return(
-    <div style={{minHeight:'100vh',background:'#07050F',display:'flex',alignItems:'center',justifyContent:'center',padding:20,position:'relative',overflow:'hidden'}}>
-      <style>{CSS(true)}</style>
-      <div className="app-bg"><div className="orb orb1"/><div className="orb orb2"/></div>
-      <Stars/>
-      <div style={{width:'100%',maxWidth:400,position:'relative',zIndex:1}} className="fu">
-        {/* Logo */}
-        <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{width:56,height:56,borderRadius:16,background:'linear-gradient(135deg,#7C3AED,#6D28D9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,margin:'0 auto 14px',boxShadow:'0 8px 32px rgba(124,58,237,0.5)'}}>🧠</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#F0EEFF',letterSpacing:-0.5}} className="grad-text">Memora</div>
-          <div style={{fontSize:13,color:'rgba(240,236,255,0.5)',marginTop:4}}>{mode==='login'?'Welcome back, scholar':'Join thousands of students'}</div>
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:380}} className="fu">
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <div style={{fontSize:36,marginBottom:10}}>🧠</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:'#ECECEC',letterSpacing:-0.5}}>Memora</div>
+          <div style={{fontSize:14,color:t.muted,marginTop:4}}>{mode==='login'?'Welcome back':'Create your account'}</div>
         </div>
-
-        {/* Card */}
-        <div style={{background:'rgba(255,255,255,0.05)',backdropFilter:'blur(30px)',WebkitBackdropFilter:'blur(30px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:20,padding:28,boxShadow:'0 24px 64px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.05) inset'}}>
-          {/* Google */}
-          <button onClick={googleLogin} disabled={loading} style={{width:'100%',padding:'12px',borderRadius:10,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:'#F0EEFF',fontSize:14,fontWeight:500,display:'flex',alignItems:'center',justifyContent:'center',gap:10,marginBottom:20,backdropFilter:'blur(10px)',transition:'all 0.2s'}}
-            onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.1)'}
-            onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}>
-            <span style={{fontSize:16,fontWeight:700,color:'#4285F4'}}>G</span> Continue with Google
+        <div style={{background:'#1C1C1C',border:'1px solid #2E2E2E',borderRadius:14,padding:28}}>
+          <button onClick={googleLogin} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,fontWeight:500,display:'flex',alignItems:'center',justifyContent:'center',gap:10,marginBottom:20}}>
+            <span style={{fontSize:16}}>G</span> Continue with Google
           </button>
-          {/* Divider */}
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
-            <div style={{flex:1,height:1,background:'rgba(255,255,255,0.08)'}}/>
-            <span style={{fontSize:11,color:'rgba(240,236,255,0.3)',fontWeight:500}}>or continue with email</span>
-            <div style={{flex:1,height:1,background:'rgba(255,255,255,0.08)'}}/>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+            <div style={{flex:1,height:1,background:'#2E2E2E'}}/>
+            <span style={{fontSize:11,color:t.muted}}>or</span>
+            <div style={{flex:1,height:1,background:'#2E2E2E'}}/>
           </div>
-          {/* Mode tabs */}
-          <div style={{display:'flex',background:'rgba(255,255,255,0.04)',borderRadius:10,padding:3,border:'1px solid rgba(255,255,255,0.07)',marginBottom:18}}>
-            {['login','signup'].map(m=>(
-              <button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'8px',borderRadius:8,border:'none',background:mode===m?'linear-gradient(135deg,#7C3AED,#6D28D9)':'transparent',color:mode===m?'#fff':'rgba(240,236,255,0.45)',fontSize:13,fontWeight:mode===m?600:400,boxShadow:mode===m?'0 4px 12px rgba(124,58,237,0.4)':'none',transition:'all 0.2s'}}>
-                {m==='login'?'Sign In':'Sign Up'}
-              </button>
-            ))}
+          <div style={{display:'flex',background:'#252525',borderRadius:7,border:'1px solid #2E2E2E',marginBottom:18,padding:3}}>
+            {['login','signup'].map(m=><button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px',borderRadius:5,border:'none',background:mode===m?'#8B5CF6':'transparent',color:mode===m?'#fff':t.muted,fontSize:13,fontWeight:mode===m?600:400,textTransform:'capitalize'}}>{m==='login'?'Sign In':'Sign Up'}</button>)}
           </div>
-          {mode==='signup'&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={inp}
-            onFocus={e=>{e.target.style.borderColor='rgba(124,58,237,0.6)';e.target.style.boxShadow='0 0 0 3px rgba(124,58,237,0.1)'}}
-            onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.1)';e.target.style.boxShadow='none'}}/>}
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" type="email" style={inp}
-            onFocus={e=>{e.target.style.borderColor='rgba(124,58,237,0.6)';e.target.style.boxShadow='0 0 0 3px rgba(124,58,237,0.1)'}}
-            onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.1)';e.target.style.boxShadow='none'}}/>
-          <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Password" type="password" onKeyDown={e=>e.key==='Enter'&&submit()} style={inp}
-            onFocus={e=>{e.target.style.borderColor='rgba(124,58,237,0.6)';e.target.style.boxShadow='0 0 0 3px rgba(124,58,237,0.1)'}}
-            onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.1)';e.target.style.boxShadow='none'}}/>
-          {err&&<div style={{fontSize:13,color:'#F87171',marginBottom:12,textAlign:'center',padding:'8px 12px',background:'rgba(239,68,68,0.1)',borderRadius:8,border:'1px solid rgba(239,68,68,0.2)'}}>{err}</div>}
-          <button onClick={submit} disabled={loading} className="btn-glow" style={{width:'100%',padding:13,borderRadius:10,border:'none',color:'#fff',fontSize:14,fontWeight:700,marginTop:4}}>
-            {loading?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{width:16,height:16,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',display:'inline-block'}}/>Please wait...</span>:(mode==='login'?'Sign In →':'Create Account →')}
-          </button>
+          {mode==='signup'&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:10}}/>}
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" type="email" style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:10}}/>
+          <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Password" type="password" onKeyDown={e=>e.key==='Enter'&&submit()} style={{width:'100%',padding:'11px 14px',borderRadius:8,border:'1px solid #3A3A3A',background:'#252525',color:'#ECECEC',fontSize:14,marginBottom:14}}/>
+          {err&&<div style={{fontSize:13,color:'#DC2626',marginBottom:12,textAlign:'center'}}>{err}</div>}
+          <button onClick={submit} disabled={loading} style={{width:'100%',padding:12,borderRadius:8,border:'none',background:'#8B5CF6',color:'#fff',fontSize:14,fontWeight:700}}>{loading?'Please wait...':(mode==='login'?'Sign In →':'Create Account →')}</button>
         </div>
-        <div style={{textAlign:'center',marginTop:18}}>
-          <button onClick={()=>setView('home')} style={{background:'none',border:'none',color:'rgba(240,236,255,0.4)',fontSize:13,cursor:'pointer'}}>← Back to home</button>
-        </div>
+        <div style={{textAlign:'center',marginTop:20}}><button onClick={()=>setView('home')} style={{background:'none',border:'none',color:t.muted,fontSize:13}}>← Back</button></div>
       </div>
     </div>
   )
-
-  // Home landing
-  const features=[
-    {icon:'⚡',title:'Instant Explanations',desc:'Get clear, exam-focused answers to any topic from your syllabus instantly'},
-    {icon:'🎯',title:'Smart Quiz Mode',desc:'AI generates MCQs tailored to your course and tracks your weak spots'},
-    {icon:'📋',title:'Syllabus-Aware',desc:'Upload your PDF syllabus and get answers scoped exactly to your course'},
-    {icon:'🔮',title:'Exam Predictions',desc:'AI predicts the most likely questions based on your exam pattern'},
-  ]
   return(
-    <div style={{minHeight:'100vh',background:'#07050F',overflow:'auto',position:'relative'}}>
-      <style>{CSS(true)}</style>
-      <div className="app-bg"><div className="orb orb1"/><div className="orb orb2"/><div className="orb orb3"/></div>
-      <div className="grid-overlay"/>
-      <Stars/>
-
-      {/* Nav */}
-      <nav style={{position:'relative',zIndex:10,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 40px',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#7C3AED,#6D28D9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,boxShadow:'0 4px 16px rgba(124,58,237,0.4)'}}>🧠</div>
-          <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:'#F0EEFF',letterSpacing:-0.3}}>Memora</span>
-        </div>
-        <button onClick={()=>setView('auth')} className="btn-glow" style={{padding:'9px 22px',borderRadius:10,border:'none',color:'#fff',fontSize:13,fontWeight:600}}>
-          Get Started Free
-        </button>
-      </nav>
-
-      {/* Hero */}
-      <div style={{position:'relative',zIndex:1,textAlign:'center',padding:'80px 20px 60px',maxWidth:720,margin:'0 auto'}} className="fu">
-        <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:'rgba(124,58,237,0.12)',border:'1px solid rgba(124,58,237,0.25)',marginBottom:28}}>
-          <span style={{width:7,height:7,borderRadius:'50%',background:'#10B981',display:'inline-block',animation:'glow 2s ease-in-out infinite'}}/>
-          <span style={{fontSize:12,color:'rgba(240,236,255,0.7)',fontWeight:500}}>AI-Powered Study Assistant for Indian Students</span>
-        </div>
-        <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:'clamp(36px,6vw,64px)',fontWeight:800,lineHeight:1.1,marginBottom:20,letterSpacing:-2}}>
-          <span style={{color:'#F0EEFF'}}>Study Smarter</span><br/>
-          <span className="grad-text">with AI by Your Side</span>
-        </h1>
-        <p style={{fontSize:'clamp(15px,2.5vw,18px)',color:'rgba(240,236,255,0.55)',lineHeight:1.7,marginBottom:40,maxWidth:520,margin:'0 auto 40px'}}>
-          Explain, quiz, summarize, predict exam questions — all from your exact syllabus. Built for CBSE, JEE, NEET, BCA and every Indian course.
-        </p>
-        <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <button onClick={()=>setView('auth')} className="btn-glow" style={{padding:'14px 36px',borderRadius:12,border:'none',color:'#fff',fontSize:15,fontWeight:700}}>
-            Start Studying Free →
-          </button>
-          <button style={{padding:'14px 24px',borderRadius:12,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.05)',backdropFilter:'blur(10px)',color:'rgba(240,236,255,0.7)',fontSize:15,fontWeight:500}}>
-            ₹99/month for Pro ⭐
-          </button>
-        </div>
-        <div style={{marginTop:16,fontSize:12,color:'rgba(240,236,255,0.3)'}}>No credit card required · 20 free messages daily</div>
-      </div>
-
-      {/* Features */}
-      <div style={{position:'relative',zIndex:1,maxWidth:900,margin:'0 auto',padding:'20px 20px 80px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16}}>
-        {features.map((f,i)=>(
-          <div key={i} className="fu" style={{animationDelay:`${i*0.08}s`,background:'rgba(255,255,255,0.04)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'22px',transition:'all 0.25s ease',cursor:'default'}}
-            onMouseEnter={e=>{e.currentTarget.style.background='rgba(124,58,237,0.1)';e.currentTarget.style.borderColor='rgba(124,58,237,0.3)';e.currentTarget.style.transform='translateY(-4px)';e.currentTarget.style.boxShadow='0 16px 40px rgba(124,58,237,0.15)'}}
-            onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.04)';e.currentTarget.style.borderColor='rgba(255,255,255,0.08)';e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='none'}}>
-            <div style={{fontSize:28,marginBottom:12}}>{f.icon}</div>
-            <div style={{fontSize:14,fontWeight:700,color:'#F0EEFF',marginBottom:6}}>{f.title}</div>
-            <div style={{fontSize:12,color:'rgba(240,236,255,0.45)',lineHeight:1.6}}>{f.desc}</div>
-          </div>
-        ))}
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20,textAlign:'center'}}>
+      <div className="fu" style={{maxWidth:480,width:'100%'}}>
+        <div style={{fontSize:52,marginBottom:16}}>🧠</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:38,fontWeight:800,color:'#ECECEC',letterSpacing:-1,marginBottom:8}}>Memora</div>
+        <div style={{fontSize:16,color:'#8C8C8C',marginBottom:40,lineHeight:1.6}}>Your AI study companion.<br/>Explain, quiz, summarize — anything from your syllabus.</div>
+        <button onClick={()=>setView('auth')} style={{padding:'14px 40px',borderRadius:10,border:'none',background:'#8B5CF6',color:'#fff',fontSize:15,fontWeight:700,marginBottom:12}}>Get Started Free →</button>
+        <div style={{fontSize:13,color:'#555'}}>No credit card required</div>
       </div>
     </div>
   )
