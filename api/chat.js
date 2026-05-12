@@ -6,7 +6,7 @@ const anthropic = new Anthropic.default({
 })
 
 // ✅ Use the correct full model string
-const MODEL      = 'claude-sonnet-4-5-20251001'
+const MODEL      = 'claude-sonnet-4-6'
 const MAX_TOKENS = 2048
 const TIMEOUT_MS = 25000
 
