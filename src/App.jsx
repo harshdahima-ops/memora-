@@ -1932,3 +1932,13 @@ export default function App() {
     </div>
   )
 }
+// Add this at the bottom
+import SoloChat from './SoloChat';
+
+function SoloPage() {
+  return <SoloChat />;
+}
+
+// Export both (keep your old one + new Solo page)
+export { SoloPage };
+export default App;   // Keep your original export
