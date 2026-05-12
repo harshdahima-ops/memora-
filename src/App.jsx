@@ -381,12 +381,46 @@ function ProfileSetup({ user, onDone, dark }) {
   async function save() {
     if (!board) return
     setSaving(true)
-    const { data, error } = await supabase.from('profiles').upsert(
-      { user_id:user.id, name:user.user_metadata?.name||user.email.split('@')[0], board, subject:subject||null, weak_topics:[], premium:false },
-      { onConflict:'user_id' }
-    ).select().single()
-    if (!error && data) onDone(data)
-    setSaving(false)
+
+    const profileData = {
+      user_id:     user.id,
+      name:        user.user_metadata?.name || user.email.split('@')[0],
+      board,
+      subject:     subject || null,
+      weak_topics: [],
+      premium:     false,
+    }
+
+    try {
+      // 8 second timeout on the DB call
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+      )
+
+      const dbCall = supabase
+        .from('profiles')
+        .upsert(profileData, { onConflict: 'user_id' })
+        .select()
+        .single()
+
+      const { data, error } = await Promise.race([dbCall, timeout])
+
+      if (error) {
+        console.error('Profile save error:', error.message)
+        // Still proceed — use local profile so user isn't stuck
+        onDone({ ...profileData, id: user.id })
+        return
+      }
+
+      if (data) { onDone(data); return }
+    } catch (err) {
+      console.error('Profile save failed:', err.message)
+      // TIMEOUT or network error — proceed anyway with local data
+      // User can still use the app; profile saves next time
+    }
+
+    // Fallback: don't leave user stuck on "Saving…"
+    onDone({ ...profileData, id: user.id })
   }
 
   const sel = { width:'100%', padding:'11px 14px', borderRadius:8, border:`1px solid ${t.border}`, background:t.card2, color:t.text, fontSize:14, appearance:'none' }
@@ -1702,8 +1736,25 @@ export default function App() {
   },[])
 
   async function loadProfile(u) {
-    const { data } = await supabase.from('profiles').select('*').eq('user_id',u.id).single()
-    if (data) { setProfile(data); setWeakTopics(data.weak_topics||[]) }
+    try {
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 6000)
+      )
+      const dbCall = supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', u.id)
+        .single()
+
+      const { data } = await Promise.race([dbCall, timeout])
+      if (data) {
+        setProfile(data)
+        setWeakTopics(data.weak_topics || [])
+      }
+    } catch (err) {
+      console.error('loadProfile error:', err.message)
+      // No profile found — ProfileSetup will handle it
+    }
   }
 
   async function handleAuth(u) { setUser(u); await loadProfile(u) }
