@@ -85,12 +85,27 @@ async function callAI(messages, system, image, url) {
   const body = { messages, system }
   if (image) body.image = image
   if (url) body.url = url
-  const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
-  const data = await res.json()
-  if (data.error === 'RATE_LIMIT') throw new Error('RATE_LIMIT')
-  if (data.error) throw new Error(data.error)
-  if (!data.reply) throw new Error('No response')
-  return data.reply
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 28000)
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    clearTimeout(timer)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (data.error === 'RATE_LIMIT') throw new Error('RATE_LIMIT')
+    if (data.error) throw new Error(data.error)
+    if (!data.reply) throw new Error('No response from AI')
+    return data.reply
+  } catch(err) {
+    clearTimeout(timer)
+    if (err.name === 'AbortError') throw new Error('RATE_LIMIT')
+    throw err
+  }
 }
 
 // ── Parsers ────────────────────────────────────────────────────────────────
@@ -192,12 +207,12 @@ const T = (dark) => ({
 const CSS = (dark) => `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body,#root{height:100%;}
-body{font-family:'DM Sans',sans-serif;background:${dark?'#212121':'#FFFFFF'};color:${dark?'#ECECEC':'#0A0A0A'};-webkit-font-smoothing:antialiased;}
-input,textarea,button,select{font-family:'DM Sans',sans-serif;}
+html,body,#root{height:100%;overflow:hidden;}
+body{font-family:'DM Sans',sans-serif;background:${dark?'#212121':'#FFFFFF'};color:${dark?'#ECECEC':'#0A0A0A'};-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;}
+input,textarea,button,select{font-family:'DM Sans',sans-serif;-webkit-appearance:none;}
 input::placeholder,textarea::placeholder{color:${dark?'#555':'#AAA'};}
 input:focus,textarea:focus,select:focus{outline:none;border-color:#8B5CF6!important;}
-button{cursor:pointer;transition:background 0.15s,color 0.15s,opacity 0.15s;}
+button{cursor:pointer;transition:background 0.15s,color 0.15s,opacity 0.15s;-webkit-tap-highlight-color:transparent;}
 button:active{transform:scale(0.97);}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-thumb{background:${dark?'#444':'#CCC'};border-radius:4px;}
@@ -218,6 +233,19 @@ button:active{transform:scale(0.97);}
 .flip-inner.flipped{transform:rotateY(180deg);}
 .flip-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;}
 .flip-back{transform:rotateY(180deg);}
+.desktop-only{display:flex;}
+.mobile-only{display:none;}
+@media(max-width:768px){
+  .desktop-only{display:none!important;}
+  .mobile-only{display:flex!important;}
+  .sidebar-wrap{display:none!important;}
+  .main-content{width:100%!important;}
+  .msg-wrap{padding:6px 12px!important;}
+  .mode-pills{gap:4px!important;}
+  .mode-pill{padding:4px 10px!important;font-size:11px!important;}
+  .chat-input-row{padding:8px 12px 12px!important;}
+  .non-chat-panel{padding:10px 12px!important;}
+}
 `
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -1154,7 +1182,7 @@ Base predictions on NCERT focus areas, previous year patterns, and weightage.`
         <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column'}}>
 
           {/* Mode header */}
-          <div style={{padding:'16px 20px 12px',borderBottom:`1px solid ${t.border}`,flexShrink:0}}>
+          <div style={{padding:'16px 20px 12px',borderBottom:`1px solid ${t.border}`,flexShrink:0,overflowX:'hidden'}}>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
               <span style={{fontSize:18}}>{currentMode.label.split(' ')[0]}</span>
               <div>
@@ -1285,7 +1313,7 @@ Base predictions on NCERT focus areas, previous year patterns, and weightage.`
             )}
 
             {messages.map(m=>(
-              <div key={m.id} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:12,padding:'6px 20px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
+              <div key={m.id} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:8,padding:'6px 16px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
                 {m.role==='ai'&&<div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,marginTop:2}}>🧠</div>}
                 {m.role==='user'&&<div style={{width:32,height:32,borderRadius:6,background:t.card2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,color:t.text,marginTop:2,border:`1px solid ${t.border}`}}>{userName.slice(0,1).toUpperCase()}</div>}
                 <div style={{flex:1,maxWidth:'calc(100% - 44px)',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
@@ -1347,7 +1375,7 @@ Base predictions on NCERT focus areas, previous year patterns, and weightage.`
           )}
 
           {/* Input area */}
-          <div style={{padding:'10px 20px 16px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
+          <div style={{padding:'8px 16px 16px',borderTop:`1px solid ${t.border}`,background:t.bg,flexShrink:0}}>
             {limitHit&&(
               <div style={{fontSize:13,color:t.red,background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)',borderRadius:8,padding:'9px 16px',marginBottom:10,textAlign:'center',cursor:'pointer'}} onClick={onUpgrade}>
                 Daily limit reached. <span style={{textDecoration:'underline',fontWeight:700}}>Upgrade to Premium ⭐</span>
@@ -1356,30 +1384,30 @@ Base predictions on NCERT focus areas, previous year patterns, and weightage.`
 
             {/* Mode pills */}
             {aiMode==='study'&&(
-              <div style={{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}}>
+              <div className="mode-pills" style={{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap',overflowX:'auto',paddingBottom:2}}>
                 {studyModes.map(m=>(
-                  <button key={m.id} onClick={()=>setMode(m.id)} style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?`${m.color}18`:'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400,transition:'all 0.15s'}}>
+                  <button key={m.id} onClick={()=>setMode(m.id)} className="mode-pill" style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${mode===m.id?m.color:t.border}`,background:mode===m.id?`${m.color}18`:'transparent',color:mode===m.id?m.color:t.muted,fontSize:12,fontWeight:mode===m.id?600:400,transition:'all 0.15s',whiteSpace:'nowrap',flexShrink:0}}>
                     {m.label}
                   </button>
                 ))}
               </div>
             )}
 
-            <div style={{display:'flex',gap:8,alignItems:'flex-end',background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'8px 8px 8px 12px'}}>
-              <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'6px 8px',borderRadius:6,border:'none',background:'transparent',color:showAttach?t.accent:t.muted,fontSize:18,flexShrink:0,lineHeight:1}}>📎</button>
+            <div className="chat-input-row" style={{display:'flex',gap:8,alignItems:'flex-end',background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:'8px 8px 8px 12px'}}>
+              <button onClick={()=>setShowAttach(!showAttach)} style={{padding:'6px 8px',borderRadius:6,border:'none',background:'transparent',color:showAttach?t.accent:t.muted,fontSize:18,flexShrink:0,lineHeight:1,minWidth:36,minHeight:36}}>📎</button>
               <textarea
                 value={input}
                 onChange={e=>setInput(e.target.value)}
                 onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()} }}
-                placeholder={mode==='quiz'?'Enter a topic to quiz on…':aiMode==='general'?'Ask me anything…':'Ask anything from your syllabus…'}
+                placeholder={mode==='quiz'?'Enter a topic to quiz on…':aiMode==='general'?'Ask me anything…':'Ask anything…'}
                 disabled={limitHit}
                 rows={1}
                 style={{flex:1,padding:'6px 0',border:'none',background:'transparent',color:t.text,fontSize:15,resize:'none',maxHeight:120,lineHeight:1.6}}
                 onInput={e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'}}
               />
-              <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'8px 16px',borderRadius:8,border:'none',background:(typing||!input.trim()||limitHit)?t.card2:'#8B5CF6',color:(typing||!input.trim()||limitHit)?t.muted:'#fff',fontSize:14,fontWeight:600,flexShrink:0,opacity:(typing||!input.trim()||limitHit)?0.5:1}}>↑</button>
+              <button onClick={send} disabled={typing||!input.trim()||limitHit} style={{padding:'8px 14px',borderRadius:8,border:'none',background:(typing||!input.trim()||limitHit)?t.card2:'#8B5CF6',color:(typing||!input.trim()||limitHit)?t.muted:'#fff',fontSize:16,fontWeight:700,flexShrink:0,opacity:(typing||!input.trim()||limitHit)?0.5:1,minWidth:42,minHeight:42}}>↑</button>
             </div>
-            <div style={{fontSize:11,color:t.muted,marginTop:6,textAlign:'center'}}>Enter to send · Shift+Enter for new line{aiMode==='study'?' · Upload syllabus PDF for exact answers':''}</div>
+            <div style={{fontSize:11,color:t.muted,marginTop:5,textAlign:'center'}}>Enter to send · Shift+Enter for new line</div>
           </div>
         </>
       )}
@@ -1407,7 +1435,7 @@ function ConversationView({ conversation, dark, onBack }) {
       </div>
       <div style={{flex:1,overflowY:'auto',padding:'24px 0'}}>
         {conversation.messages.map((m,i)=>(
-          <div key={i} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:12,padding:'6px 20px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
+          <div key={i} className="msg" style={{display:'flex',flexDirection:m.role==='user'?'row-reverse':'row',gap:8,padding:'6px 16px',maxWidth:760,margin:'0 auto',width:'100%',alignItems:'flex-start'}}>
             {m.role==='ai'&&<div style={{width:32,height:32,borderRadius:6,background:'#8B5CF6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,marginTop:2}}>🧠</div>}
             {m.role==='user'&&<div style={{width:32,height:32,borderRadius:6,background:t.card2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,flexShrink:0,color:t.text,marginTop:2,border:`1px solid ${t.border}`}}>U</div>}
             <div style={{flex:1,maxWidth:'calc(100% - 44px)',display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
@@ -1791,52 +1819,112 @@ export default function App() {
   if (!user) return <><style>{CSS(true)}</style><Landing onAuth={handleAuth}/></>
   if (!profile) return <ProfileSetup user={user} onDone={handleProfileDone} dark={dark}/>
 
+  const t = T(dark)
+  const navItems = [
+    {id:'chat',icon:'💬',label:'Chat'},
+    {id:'notes',icon:'📝',label:'Notes'},
+    {id:'progress',icon:'📊',label:'Progress'},
+    {id:'history',icon:'🕐',label:'History'},
+  ]
+
+  function switchTab(id){ setTab(id); setSelectedConv(null) }
+
   return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:T(dark).bg}}>
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:t.bg}}>
       <style>{CSS(dark)}</style>
-      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <Sidebar
-            tab={tab} setTab={t=>{ setTab(t); setSelectedConv(null) }}
-            dark={dark} setDark={setDark}
-            user={user} profile={profile}
-            isPremium={isPremium}
-            onUpgrade={()=>setShowPremium(true)}
-            onLogout={handleLogout}
-            aiMode={aiMode} setAiMode={setAiMode}
-          />
-        )}
+
+      {/* ── MOBILE TOP BAR ── */}
+      <div className="mobile-only" style={{
+        alignItems:'center',justifyContent:'space-between',
+        padding:'10px 16px',borderBottom:`1px solid ${t.border}`,
+        background:t.sidebar,flexShrink:0,zIndex:10
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:20}}>🧠</span>
+          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:t.text}}>Memora</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button onClick={()=>setDark(d=>!d)} style={{background:'none',border:`1px solid ${t.border}`,borderRadius:8,padding:'6px 10px',color:t.muted,fontSize:14}}>{dark?'☀️':'🌙'}</button>
+          {!isPremium&&<button onClick={()=>setShowPremium(true)} style={{background:'rgba(139,92,246,0.12)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,padding:'6px 10px',color:'#8B5CF6',fontSize:12,fontWeight:600}}>⭐ Pro</button>}
+        </div>
+      </div>
+
+      {/* ── DESKTOP: sidebar + content ── */}
+      <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
+
+        {/* Sidebar — desktop only */}
+        <div className="sidebar-wrap desktop-only" style={{flexShrink:0}}>
+          {sidebarOpen && (
+            <Sidebar
+              tab={tab} setTab={switchTab}
+              dark={dark} setDark={setDark}
+              user={user} profile={profile}
+              isPremium={isPremium}
+              onUpgrade={()=>setShowPremium(true)}
+              onLogout={handleLogout}
+              aiMode={aiMode} setAiMode={setAiMode}
+            />
+          )}
+        </div>
 
         {/* Main content */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
-          {/* Mobile header */}
-          <div style={{display:'none',padding:'10px 16px',borderBottom:`1px solid ${T(dark).border}`,alignItems:'center',gap:10,background:T(dark).bg,flexShrink:0}}>
-            <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:'none',border:'none',fontSize:18,color:T(dark).muted,padding:0}}>☰</button>
-            <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:T(dark).text}}>🧠 Memora</span>
+        <div className="main-content" style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
+
+          {/* AI Mode toggle — mobile only */}
+          <div className="mobile-only" style={{
+            padding:'8px 12px',borderBottom:`1px solid ${t.border}`,
+            background:t.bg,flexShrink:0,alignItems:'center',gap:8
+          }}>
+            <div style={{display:'flex',background:t.card,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2,flex:1}}>
+              {[['study','📚 Study'],['general','🌐 General']].map(([m,l])=>(
+                <button key={m} onClick={()=>setAiMode(m)} style={{flex:1,padding:'5px 6px',borderRadius:5,border:'none',background:aiMode===m?'#8B5CF6':'transparent',color:aiMode===m?'#fff':t.muted,fontSize:12,fontWeight:aiMode===m?600:400}}>{l}</button>
+              ))}
+            </div>
+            {profile?.board&&<span style={{fontSize:11,color:t.muted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:120}}>{profile.board}</span>}
           </div>
 
-          {/* Tabs */}
-          {selectedConv ? (
-            <ConversationView conversation={selectedConv} dark={dark} onBack={()=>setSelectedConv(null)}/>
-          ) : tab==='chat' ? (
-            <ChatTab
-              user={user} notes={notes} profile={profile}
-              onSaveNote={content=>{setNotePrefill(content);setTab('notes')}}
-              weakTopics={weakTopics} setWeakTopics={setWeakTopics}
-              isPremium={isPremium} dark={dark}
-              onUpgrade={()=>setShowPremium(true)}
-              aiMode={aiMode}
-              onNewMessage={()=>setHistRefresh(r=>r+1)}
-              onProfileUpdate={setProfile}
-            />
-          ) : tab==='notes' ? (
-            <NotesTab user={user} notes={notes} setNotes={setNotes} prefill={notePrefill} clearPrefill={()=>setNotePrefill(null)} dark={dark}/>
-          ) : tab==='progress' ? (
-            <ProgressTab user={user} profile={profile} weakTopics={weakTopics} setWeakTopics={setWeakTopics} notes={notes} dark={dark} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}/>
-          ) : tab==='history' ? (
-            <HistoryTab user={user} dark={dark} onSelectConv={setSelectedConv} refresh={histRefresh}/>
-          ) : null}
+          {/* Page content */}
+          <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minHeight:0}}>
+            {selectedConv ? (
+              <ConversationView conversation={selectedConv} dark={dark} onBack={()=>setSelectedConv(null)}/>
+            ) : tab==='chat' ? (
+              <ChatTab
+                user={user} notes={notes} profile={profile}
+                onSaveNote={content=>{setNotePrefill(content);setTab('notes')}}
+                weakTopics={weakTopics} setWeakTopics={setWeakTopics}
+                isPremium={isPremium} dark={dark}
+                onUpgrade={()=>setShowPremium(true)}
+                aiMode={aiMode}
+                onNewMessage={()=>setHistRefresh(r=>r+1)}
+                onProfileUpdate={setProfile}
+              />
+            ) : tab==='notes' ? (
+              <NotesTab user={user} notes={notes} setNotes={setNotes} prefill={notePrefill} clearPrefill={()=>setNotePrefill(null)} dark={dark}/>
+            ) : tab==='progress' ? (
+              <ProgressTab user={user} profile={profile} weakTopics={weakTopics} setWeakTopics={setWeakTopics} notes={notes} dark={dark} onUpgrade={()=>setShowPremium(true)} isPremium={isPremium}/>
+            ) : tab==='history' ? (
+              <HistoryTab user={user} dark={dark} onSelectConv={setSelectedConv} refresh={histRefresh}/>
+            ) : null}
+          </div>
+
+          {/* ── MOBILE BOTTOM NAV ── */}
+          <div className="mobile-only" style={{
+            borderTop:`1px solid ${t.border}`,background:t.sidebar,
+            flexShrink:0,padding:'4px 0 max(4px,env(safe-area-inset-bottom))',
+            alignItems:'center',justifyContent:'space-around',zIndex:10
+          }}>
+            {navItems.map(item=>(
+              <button key={item.id} onClick={()=>switchTab(item.id)} style={{
+                display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+                padding:'6px 12px',border:'none',background:'transparent',
+                color:tab===item.id?'#8B5CF6':t.muted,flex:1,minHeight:52
+              }}>
+                <span style={{fontSize:20}}>{item.icon}</span>
+                <span style={{fontSize:10,fontWeight:tab===item.id?700:400}}>{item.label}</span>
+                {tab===item.id&&<div style={{width:16,height:2,borderRadius:2,background:'#8B5CF6',marginTop:1}}/>}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
