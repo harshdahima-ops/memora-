@@ -1664,18 +1664,41 @@ export default function App() {
   useEffect(()=>{ localStorage.setItem('memora-dark', dark) },[dark])
 
   useEffect(()=>{
-    supabase.auth.getSession().then(async({data:{session}})=>{
-      if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user)
-      }
-      setLoading(false)
-    })
-    const { data:{subscription} } = supabase.auth.onAuthStateChange(async(_,session)=>{
-      if (session?.user) { setUser(session.user); await loadProfile(session.user) }
-      else { setUser(null); setProfile(null) }
-    })
-    return ()=>subscription.unsubscribe()
+    // Failsafe: if Supabase hangs for any reason, stop the spinner after 6s
+    const failsafe = setTimeout(() => setLoading(false), 6000)
+
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        clearTimeout(failsafe)
+        if (session?.user) {
+          setUser(session.user)
+          await loadProfile(session.user).catch(()=>{})
+        }
+        setLoading(false)
+      })
+      .catch((err) => {
+        clearTimeout(failsafe)
+        console.error('Supabase getSession error:', err)
+        setLoading(false)
+      })
+
+    let subscription = { unsubscribe: ()=>{} }
+    try {
+      const { data } = supabase.auth.onAuthStateChange(async (_, session) => {
+        if (session?.user) {
+          setUser(session.user)
+          loadProfile(session.user).catch(()=>{})
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+      })
+      subscription = data.subscription
+    } catch(e) {
+      console.error('onAuthStateChange error:', e)
+    }
+
+    return () => subscription.unsubscribe()
   },[])
 
   async function loadProfile(u) {
@@ -1689,15 +1712,30 @@ export default function App() {
 
   const isPremium = profile?.premium||false
 
-  if (loading) return (
-    <div style={{minHeight:'100vh',background:'#212121',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontSize:36,marginBottom:12}}>🧠</div>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:'#ECECEC'}}>Memora</div>
-        <div style={{width:32,height:32,border:'3px solid #3A3A3A',borderTop:'3px solid #8B5CF6',borderRadius:'50%',animation:'spin 0.7s linear infinite',margin:'16px auto 0'}}/>
+  if (loading) {
+    // Check if Supabase env vars are missing (common cause of infinite spinner)
+    const missingEnv = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY
+    return (
+      <div style={{minHeight:'100vh',background:'#212121',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:36,marginBottom:12}}>🧠</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:'#ECECEC',marginBottom:16}}>Memora</div>
+          {missingEnv ? (
+            <div style={{background:'rgba(220,38,38,0.1)',border:'1px solid rgba(220,38,38,0.3)',borderRadius:10,padding:'14px 20px',maxWidth:320,textAlign:'left'}}>
+              <div style={{color:'#EF4444',fontSize:13,fontWeight:700,marginBottom:8}}>⚠️ Missing Environment Variables</div>
+              <div style={{color:'#9CA3AF',fontSize:12,lineHeight:1.6}}>
+                Add these to Vercel → Settings → Env Vars:<br/>
+                <code style={{color:'#C084FC'}}>VITE_SUPABASE_URL</code><br/>
+                <code style={{color:'#C084FC'}}>VITE_SUPABASE_ANON_KEY</code>
+              </div>
+            </div>
+          ) : (
+            <div style={{width:32,height:32,border:'3px solid #3A3A3A',borderTop:'3px solid #8B5CF6',borderRadius:'50%',animation:'spin 0.7s linear infinite',margin:'0 auto'}}/>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   if (!user) return <><style>{CSS(true)}</style><Landing onAuth={handleAuth}/></>
   if (!profile) return <ProfileSetup user={user} onDone={handleProfileDone} dark={dark}/>
