@@ -1,166 +1,105 @@
-// api/chat.js — Memora AI Backend (CommonJS for Vercel)
-// Uses Groq FREE API (llama-3.3-70b-versatile)
+// api/chat.js — Memora AI Backend (uses FREE Groq API)
+// No npm install needed — uses native fetch
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY
-const MODEL = 'llama-3.3-70b-versatile'
-const MAX_TOKENS = 2048
-const TIMEOUT_MS = 25000
-
-// Simple IP rate limiter (in-memory, resets on cold start)
-const ipHits = new Map()
-function checkIpRateLimit(ip) {
-  const now = Date.now()
-  const window = 60 * 1000 // 1 minute
-  const limit = 40
-  const hits = (ipHits.get(ip) || []).filter(t => now - t < window)
-  hits.push(now)
-  ipHits.set(ip, hits)
-  return hits.length > limit
-}
-
-// Fetch text from a URL (for URL attachments)
-async function fetchUrlText(url) {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 7000)
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MemoraBot/1.0)' }
-    })
-    clearTimeout(timer)
-    const html = await res.text()
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 6000)
-  } catch {
-    return null
-  }
-}
 
 module.exports = async function handler(req, res) {
-  // ── CORS
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // ── Check API key exists
+  // Check API key
   if (!GROQ_API_KEY) {
-    return res.status(500).json({ error: 'GROQ_API_KEY not set in Vercel environment variables.' })
+    console.error('GROQ_API_KEY is not set in environment variables')
+    return res.status(500).json({ error: 'Server config error: missing API key' })
   }
 
-  // ── IP rate limit
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || 'unknown'
-  if (checkIpRateLimit(ip)) {
-    return res.status(429).json({ error: 'RATE_LIMIT' })
-  }
-
-  // ── Validate
   const { messages, system, url } = req.body || {}
+
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Messages required' })
   }
 
-  // ── Sanitize messages
+  // Sanitize messages — keep last 14, fix roles
   const sanitized = messages
-    .filter(m => m && m.role && typeof m.content === 'string')
-    .slice(-20)
+    .filter(m => m && m.role && typeof m.content === 'string' && m.content.trim())
+    .slice(-14)
     .map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content.slice(0, 6000)
+      role: m.role === 'assistant' || m.role === 'ai' ? 'assistant' : 'user',
+      content: m.content.slice(0, 4000)
     }))
 
-  if (sanitized.length === 0) {
-    return res.status(400).json({ error: 'No valid messages' })
-  }
-
-  // ── Handle URL attachment
-  const lastMsg = sanitized[sanitized.length - 1]
-  const priorMsgs = sanitized.slice(0, -1)
-
-  let finalUserContent = lastMsg.content
-
-  if (url && typeof url === 'string') {
-    const urlText = await fetchUrlText(url)
-    if (urlText) {
-      finalUserContent = `[Content from URL: ${url}]\n\n${urlText}\n\n---\n\nUser question: ${lastMsg.content}`
-    }
-  }
-
-  const apiMessages = [
-    ...priorMsgs,
-    { role: 'user', content: finalUserContent }
-  ]
-
-  // ── Fix alternating roles (Groq also requires user/assistant/user...)
+  // Fix alternating roles (Groq requires user/assistant/user...)
   const deduped = []
-  for (const msg of apiMessages) {
+  for (const msg of sanitized) {
     if (!deduped.length || deduped[deduped.length - 1].role !== msg.role) {
       deduped.push(msg)
     }
   }
-  if (deduped[0]?.role !== 'user') {
-    deduped.unshift({ role: 'user', content: '(continue)' })
+  if (!deduped.length || deduped[0].role !== 'user') {
+    deduped.unshift({ role: 'user', content: 'Hello' })
   }
 
-  // ── System prompt
-  const systemPrompt = (typeof system === 'string' ? system : 'You are Memora, a helpful AI study assistant.').slice(0, 4000)
+  // If URL attachment, prepend content to last message
+  if (url && typeof url === 'string') {
+    try {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(), 6000)
+      const r = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } })
+      const html = await r.text()
+      const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000)
+      const last = deduped[deduped.length - 1]
+      deduped[deduped.length - 1] = { ...last, content: `[Page content: ${text}]\n\nUser: ${last.content}` }
+    } catch (_) {}
+  }
 
-  // ── Call Groq API with timeout
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('TIMEOUT')), TIMEOUT_MS)
-  )
+  const systemPrompt = typeof system === 'string'
+    ? system.slice(0, 3000)
+    : 'You are Memora, a helpful AI study assistant for Indian students.'
 
   try {
-    const groqResponse = await Promise.race([
-      fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROQ_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: MAX_TOKENS,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...deduped
-          ]
-        })
-      }),
-      timeoutPromise
-    ])
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...deduped
+        ]
+      })
+    })
 
-    if (!groqResponse.ok) {
-      const errData = await groqResponse.json().catch(() => ({}))
-      console.error('[chat.js] Groq error:', groqResponse.status, errData)
-
-      if (groqResponse.status === 401) {
-        return res.status(500).json({ error: 'API key error. Check GROQ_API_KEY in Vercel env vars.' })
+    if (!groqRes.ok) {
+      const errBody = await groqRes.text()
+      console.error('Groq API error:', groqRes.status, errBody)
+      if (groqRes.status === 401) {
+        return res.status(500).json({ error: 'Invalid GROQ_API_KEY. Check Vercel env vars.' })
       }
-      if (groqResponse.status === 429) {
+      if (groqRes.status === 429) {
         return res.status(200).json({ error: 'RATE_LIMIT' })
       }
-      return res.status(500).json({ error: 'AI unavailable. Please try again.' })
+      return res.status(500).json({ error: 'AI service error: ' + groqRes.status })
     }
 
-    const data = await groqResponse.json()
-    const reply = data.choices?.[0]?.message?.content?.trim()
+    const data = await groqRes.json()
+    const reply = data?.choices?.[0]?.message?.content?.trim()
 
-    if (!reply) return res.status(500).json({ error: 'Empty AI response' })
+    if (!reply) {
+      return res.status(500).json({ error: 'Empty response from AI' })
+    }
 
     return res.status(200).json({ reply })
 
   } catch (err) {
-    console.error('[chat.js] Error:', err.message)
-    if (err.message === 'TIMEOUT') {
-      return res.status(200).json({ error: 'RATE_LIMIT' })
-    }
-    return res.status(500).json({ error: 'AI unavailable. Please try again.' })
+    console.error('Handler error:', err.message)
+    return res.status(500).json({ error: 'Something went wrong: ' + err.message })
   }
 }
