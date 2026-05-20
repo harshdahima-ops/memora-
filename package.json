@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
     "@supabase/supabase-js": "^2.63.0",
     "pdf-parse": "^1.1.1",
     "razorpay": "^2.9.6",
